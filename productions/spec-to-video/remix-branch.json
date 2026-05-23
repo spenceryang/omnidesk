@@ -1,0 +1,25 @@
+{
+  "parent_version": "the-desk-wakes-up-v1",
+  "remix_prompt": "Make the chorus vertical, brighter, and more kinetic while preserving the desk/control-room motif and the same abstract creator movement.",
+  "changed_scenes": [
+    {
+      "id": "scene_04",
+      "change_summary": "Increase brightness, add faster match cuts, emphasize vertical format, keep the same movement gesture and three-world structure.",
+      "updated_prompt": "On the chorus drop, create a brighter, more kinetic 9:16 vertical sequence where the same abstract light-dancer gesture branches into three original worlds: neon rooftop stage, chrome train platform, desert signal tower. Add faster match cuts, stronger cyan-magenta light trails, more beat-synced camera movement, and a clearer vertical social-video composition. Preserve the black-glass production desk motif as reflections and UI overlays in each world. No franchise references, no celebrity likeness, no copyrighted designs."
+    },
+    {
+      "id": "scene_06",
+      "change_summary": "Make the remix branch more legible for the product demo.",
+      "updated_prompt": "Generated clip cards snap into a vertical timeline. A bright remix branch grows from the chorus scene and creates a second version labeled Brighter Chorus Remix. The original timeline remains visible underneath, showing non-destructive editing. Premium UI projected as physical light above a black glass production desk."
+    }
+  ],
+  "unchanged_locked_elements": [
+    "abstract light-dancer silhouette",
+    "cyan-magenta palette",
+    "black glass desk motif",
+    "no identifiable real-person face",
+    "no protected IP references"
+  ],
+  "safety_status": "pass"
+}
+

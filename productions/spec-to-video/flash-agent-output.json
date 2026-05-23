@@ -1,0 +1,145 @@
+{
+  "project": {
+    "title": "The Desk Wakes Up",
+    "source": "Omnidesk product spec",
+    "format": "9:16",
+    "duration_seconds": 45,
+    "logline": "A creator's scattered assets become a living production desk where managed agents transform music, movement, safety, and remix instructions into a coherent music video."
+  },
+  "music_analysis": {
+    "target_bpm": 124,
+    "sections": [
+      {
+        "id": "s01",
+        "label": "intro",
+        "start_sec": 0,
+        "end_sec": 5,
+        "mood": "mysterious, precise",
+        "energy": 2,
+        "visual_opportunity": "Raw creator assets float before organization."
+      },
+      {
+        "id": "s02",
+        "label": "verse",
+        "start_sec": 5,
+        "end_sec": 18,
+        "mood": "focused, intelligent",
+        "energy": 5,
+        "visual_opportunity": "Agents organize assets and extract creator DNA."
+      },
+      {
+        "id": "s03",
+        "label": "chorus",
+        "start_sec": 18,
+        "end_sec": 29,
+        "mood": "bright, kinetic",
+        "energy": 9,
+        "visual_opportunity": "Multiple generated worlds branch from one movement motif."
+      },
+      {
+        "id": "s04",
+        "label": "break",
+        "start_sec": 29,
+        "end_sec": 35,
+        "mood": "glitchy, controlled",
+        "energy": 6,
+        "visual_opportunity": "IP safety rewrite becomes visual proof."
+      },
+      {
+        "id": "s05",
+        "label": "outro",
+        "start_sec": 35,
+        "end_sec": 45,
+        "mood": "resolved, polished",
+        "energy": 7,
+        "visual_opportunity": "Timeline assembly and product close."
+      }
+    ]
+  },
+  "style_bible": {
+    "visual_language": "Futuristic production studio, black glass, white graph lines, luminous creator media cards, neon accents, precise camera movement, editorial UI overlays.",
+    "palette": ["black glass", "soft white", "electric cyan", "warm magenta", "signal amber"],
+    "camera_language": [
+      "macro closeups of media cards",
+      "smooth orbital moves around the desk",
+      "beat-synced snap zooms during branching",
+      "top-down timeline assembly shots",
+      "fast but readable UI transitions"
+    ],
+    "motifs": [
+      "floating production graph",
+      "light-dancer silhouette",
+      "branching remix worlds",
+      "safety rewrite redactions",
+      "timeline magnets"
+    ],
+    "negative_constraints": [
+      "no named franchise references",
+      "no celebrity likeness",
+      "no recognizable copyrighted costumes, logos, or vehicles",
+      "no real-person face unless user-provided with consent",
+      "no imitation of named musicians"
+    ]
+  },
+  "scenes": [
+    {
+      "id": "scene_01",
+      "start_sec": 0,
+      "end_sec": 5,
+      "title": "Scattered Inputs",
+      "description": "A black glass desk floats in darkness while creator assets drift around it as translucent media cards.",
+      "safety_status": "pass"
+    },
+    {
+      "id": "scene_02",
+      "start_sec": 5,
+      "end_sec": 11,
+      "title": "Flash Planning Pass",
+      "description": "A production graph forms and specialist agent labels light up around the desk.",
+      "safety_status": "pass"
+    },
+    {
+      "id": "scene_03",
+      "start_sec": 11,
+      "end_sec": 18,
+      "title": "Creator DNA Extraction",
+      "description": "An abstract light-dancer gesture becomes movement rules, camera paths, wardrobe geometry, and color trails.",
+      "safety_status": "pass"
+    },
+    {
+      "id": "scene_04",
+      "start_sec": 18,
+      "end_sec": 29,
+      "title": "Scene Worlds Branch",
+      "description": "Three original worlds unfold from the same movement rhythm: neon rooftop, chrome train platform, desert signal tower.",
+      "safety_status": "pass"
+    },
+    {
+      "id": "scene_05",
+      "start_sec": 29,
+      "end_sec": 35,
+      "title": "IP Safety Rewrite",
+      "description": "Risky references are redacted and rewritten into original descriptive terms, then stamped safe.",
+      "safety_status": "pass"
+    },
+    {
+      "id": "scene_06",
+      "start_sec": 35,
+      "end_sec": 42,
+      "title": "Timeline Assembly",
+      "description": "Generated clips snap into a vertical timeline with beat markers and remix branch indicators.",
+      "safety_status": "pass"
+    },
+    {
+      "id": "scene_07",
+      "start_sec": 42,
+      "end_sec": 45,
+      "title": "Final Frame",
+      "description": "The desk folds into the Omnidesk wordmark with the line: Original. Remixable. Rights-aware.",
+      "safety_status": "pass"
+    }
+  ],
+  "originality_score": 88,
+  "recommended_generation_order": ["scene_04", "scene_03", "scene_06", "scene_01"]
+}
+

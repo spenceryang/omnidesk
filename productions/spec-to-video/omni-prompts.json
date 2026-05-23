@@ -1,0 +1,56 @@
+{
+  "global_prompt": "Create a polished 9:16 vertical music video for a futuristic creator tool called Omnidesk. Visual language: black glass production desk, luminous media cards, white production graph lines, electric cyan and warm magenta accents, precise cinematic UI overlays, kinetic but readable camera movement. The video must feel original, rights-safe, and not derivative of any named film, franchise, artist, character, logo, or celebrity. Use abstract creator-owned movement represented as a light silhouette, not an identifiable face.",
+  "negative_prompt": "No copyrighted characters, no recognizable franchise armor or vehicles, no celebrity likeness, no brand logos besides Omnidesk text, no artist imitation, no real person's face, no violent weapons, no misleading deepfake aesthetics, no generic stock footage look.",
+  "scenes": [
+    {
+      "id": "scene_01",
+      "duration_seconds": 5,
+      "prompt": "A black glass desk floats in a dark studio void. Around it, translucent creator media cards drift slowly: a waveform, a lyric page, a dance-video frame represented abstractly, outfit color swatches, and a small storyboard sketch. Soft cyan rim light, subtle dust particles, macro cinematic camera push-in, quiet anticipation.",
+      "camera": "slow push-in from wide to macro desk surface",
+      "edit_notes": "Cut on first strong kick into scene_02."
+    },
+    {
+      "id": "scene_02",
+      "duration_seconds": 6,
+      "prompt": "Thin white graph lines connect the floating media cards into a production graph above the black glass desk. Five clean light-strip labels appear around the graph: Music Analyst, Director, Continuity, IP Safety, Remix. The UI feels premium and physical, like light projected into the room, not a flat dashboard. Kinetic percussion-driven motion.",
+      "camera": "top-down orbit, then snap zoom to graph center",
+      "edit_notes": "Agent labels appear on percussion hits."
+    },
+    {
+      "id": "scene_03",
+      "duration_seconds": 7,
+      "prompt": "An abstract dancer silhouette made of soft white light repeats a distinctive arm-and-shoulder gesture. The gesture leaves cyan and magenta trails that transform into camera paths, wardrobe shapes, scene color palettes, and motion rules. No face, no realistic identity, just creator movement becoming visual DNA. Premium music video lighting.",
+      "camera": "side profile tracking shot, then spin into trailing motion paths",
+      "edit_notes": "Use this as the Creator DNA proof scene."
+    },
+    {
+      "id": "scene_04",
+      "duration_seconds": 11,
+      "prompt": "On the chorus drop, the same abstract light-dancer gesture branches into three original generated worlds in rapid sequence: a neon rooftop stage after rain, a chrome train platform with cinematic fog and light strips, and a desert signal tower at sunset with abstract sci-fi props. Preserve the same movement rhythm, cyan-magenta palette, and black-glass motif across all worlds. Completely original; no franchise references.",
+      "camera": "fast match cuts between worlds, each cut aligned to the same gesture",
+      "edit_notes": "This is the hero scene. Prioritize for generation."
+    },
+    {
+      "id": "scene_05",
+      "duration_seconds": 6,
+      "prompt": "A clean futuristic rights-safety interface appears as physical typography in the air. Risky reference words are redacted with amber light and rewritten into original descriptive terms. A safety pass seal forms from graph lines and lands on the scene plan. Make the visual elegant, not bureaucratic.",
+      "camera": "macro text redaction, then pull back to full safety panel",
+      "edit_notes": "Use glitch edits and half-time rhythm."
+    },
+    {
+      "id": "scene_06",
+      "duration_seconds": 7,
+      "prompt": "Generated clip cards snap magnetically into a vertical 9:16 timeline floating above the production desk. Beat markers glow along the audio waveform. Scene cards labeled intro, verse, chorus, safety, remix, export lock into place. A branching remix line creates a second version without destroying the first. Premium creator-tool launch-film style.",
+      "camera": "top-down timeline glide with beat-synced snap cuts",
+      "edit_notes": "Show remix branch clearly."
+    },
+    {
+      "id": "scene_07",
+      "duration_seconds": 3,
+      "prompt": "The black glass production desk folds into a clean Omnidesk wordmark made of white light. Under it, small refined text reads: Original. Remixable. Rights-aware. The background remains dark with subtle cyan and magenta glow.",
+      "camera": "locked hero frame with slight lens shimmer",
+      "edit_notes": "End on clean logo hold."
+    }
+  ]
+}
+
