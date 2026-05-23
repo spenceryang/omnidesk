@@ -51,6 +51,15 @@ export async function getVideoJob(jobId) {
   return parseResponse(response);
 }
 
+export async function compileVideo({ title, clips }) {
+  const response = await fetch('/api/live/compile', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ title, clips })
+  });
+  return parseResponse(response);
+}
+
 export async function createLyriaPlan({ brief, plan }) {
   const response = await fetch('/api/live/lyria-plan', {
     method: 'POST',

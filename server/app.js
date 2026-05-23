@@ -2,11 +2,13 @@ import 'dotenv/config';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
 import multer from 'multer';
 import mime from 'mime-types';
+import ffmpegPath from 'ffmpeg-static';
 import {
   GoogleGenAI,
   createPartFromUri,
@@ -490,6 +492,83 @@ app.get('/api/live/videos/:jobId', async (req, res, next) => {
     next(err);
   }
 });
+
+app.post('/api/live/compile', async (req, res, next) => {
+  try {
+    const { clips = [], title = 'omnidesk-final' } = req.body;
+    if (!Array.isArray(clips) || clips.length === 0) {
+      res.status(400).json({ ok: false, error: 'No completed clips were provided.' });
+      return;
+    }
+
+    if (!ffmpegPath) {
+      res.status(501).json({ ok: false, error: 'Video compilation is not available in this deployment.' });
+      return;
+    }
+
+    const inputPaths = clips.map((clip) => {
+      const filename = path.basename(String(clip.outputUrl || ''));
+      return path.join(generatedDir, filename);
+    });
+
+    for (const inputPath of inputPaths) {
+      try {
+        await fs.access(inputPath);
+      } catch {
+        res.status(404).json({
+          ok: false,
+          error: 'One or more generated clips are no longer available. Regenerate the clips, then compile again.'
+        });
+        return;
+      }
+    }
+
+    const compileId = crypto.randomUUID();
+    const safeTitle = String(title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'omnidesk-final';
+    const listPath = path.join(generatedDir, `${compileId}.txt`);
+    const outputFilename = `${safeTitle}-${compileId}.mp4`;
+    const outputPath = path.join(generatedDir, outputFilename);
+    const concatList = inputPaths
+      .map((inputPath) => `file '${inputPath.replaceAll("'", "'\\''")}'`)
+      .join('\n');
+    await fs.writeFile(listPath, concatList);
+
+    await runFfmpeg([
+      '-y',
+      '-f', 'concat',
+      '-safe', '0',
+      '-i', listPath,
+      '-c', 'copy',
+      outputPath
+    ]);
+
+    res.json({
+      ok: true,
+      outputUrl: `/api/outputs/${outputFilename}`,
+      clipCount: inputPaths.length
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+function runFfmpeg(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(ffmpegPath, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`ffmpeg failed with code ${code}: ${stderr.slice(-1000)}`));
+    });
+  });
+}
 
 app.post('/api/live/lyria-plan', async (req, res, next) => {
   try {

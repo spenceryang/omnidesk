@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Download,
@@ -11,6 +11,7 @@ import {
   Wand2
 } from 'lucide-react';
 import {
+  compileVideo,
   createLivePlan,
   createLyriaPlan,
   getManagedAgents,
@@ -80,7 +81,11 @@ export default function LiveGeneration({ health }) {
   const [managedAgents, setManagedAgents] = useState([]);
   const [swarmResult, setSwarmResult] = useState(null);
   const [jobs, setJobs] = useState({});
+  const [finalVideo, setFinalVideo] = useState(null);
+  const [autoCompile, setAutoCompile] = useState(false);
   const [isPlanning, setIsPlanning] = useState(false);
+  const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+  const [isCompiling, setIsCompiling] = useState(false);
   const [isMakingLyriaPlan, setIsMakingLyriaPlan] = useState(false);
   const [isRunningSwarm, setIsRunningSwarm] = useState(false);
   const [error, setError] = useState('');
@@ -88,6 +93,18 @@ export default function LiveGeneration({ health }) {
   const plan = planResponse?.plan;
   const scenes = useMemo(() => plan?.scenes || [], [plan]);
   const fallbackDuration = Math.max(1, Math.round(durationSeconds / sceneCount));
+  const completedClips = useMemo(() => (
+    scenes
+      .map((scene) => ({ scene, job: jobs[scene.id] }))
+      .filter(({ job }) => job?.status === 'completed' && job.outputUrl)
+      .map(({ scene, job }) => ({
+        sceneId: scene.id,
+        title: scene.title,
+        outputUrl: job.outputUrl
+      }))
+  ), [jobs, scenes]);
+  const completedClipCount = completedClips.length;
+  const allClipsComplete = scenes.length > 0 && completedClipCount === scenes.length;
 
   useEffect(() => {
     getManagedAgents()
@@ -142,6 +159,8 @@ export default function LiveGeneration({ health }) {
     setLyriaPlan(null);
     setSwarmResult(null);
     setJobs({});
+    setFinalVideo(null);
+    setAutoCompile(false);
     setIsPlanning(true);
 
     try {
@@ -161,7 +180,7 @@ export default function LiveGeneration({ health }) {
     }
   };
 
-  const handleGenerateScene = async (scene) => {
+  const startSceneGeneration = async (scene) => {
     setError('');
     setJobs((prev) => ({
       ...prev,
@@ -180,11 +199,67 @@ export default function LiveGeneration({ health }) {
         ...prev,
         [scene.id]: response
       }));
+      return response;
     } catch (err) {
       setJobs((prev) => ({
         ...prev,
         [scene.id]: { sceneId: scene.id, status: 'failed', error: err.message }
       }));
+      throw err;
+    }
+  };
+
+  const handleGenerateScene = async (scene) => {
+    try {
+      await startSceneGeneration(scene);
+    } catch {
+      // Error state is already written into the scene job.
+    }
+  };
+
+  const handleCompileVideo = useCallback(async () => {
+    if (!plan || !allClipsComplete) return;
+    setError('');
+    setIsCompiling(true);
+    try {
+      const response = await compileVideo({
+        title: plan.title || 'omnidesk-final',
+        clips: completedClips
+      });
+      setFinalVideo(response);
+      setAutoCompile(false);
+    } catch (err) {
+      setError(err.message);
+      setAutoCompile(false);
+    } finally {
+      setIsCompiling(false);
+    }
+  }, [allClipsComplete, completedClips, plan]);
+
+  useEffect(() => {
+    if (autoCompile && allClipsComplete && !isCompiling && !finalVideo) {
+      handleCompileVideo();
+    }
+  }, [allClipsComplete, autoCompile, finalVideo, handleCompileVideo, isCompiling]);
+
+  const handleGenerateAllAndCompile = async () => {
+    if (!plan || scenes.length === 0) return;
+    setError('');
+    setFinalVideo(null);
+    setAutoCompile(true);
+    setIsGeneratingAll(true);
+
+    try {
+      for (const scene of scenes) {
+        const job = jobs[scene.id];
+        if (job?.status === 'completed' || job?.status === 'running') continue;
+        await startSceneGeneration(scene);
+      }
+    } catch (err) {
+      setError(err.message);
+      setAutoCompile(false);
+    } finally {
+      setIsGeneratingAll(false);
     }
   };
 
@@ -322,6 +397,39 @@ export default function LiveGeneration({ health }) {
                 <span>{isRunningSwarm ? 'Checking...' : 'Run agent review'}</span>
               </button>
             </div>
+
+            <div className="render-panel">
+              <div>
+                <span>Final render</span>
+                <strong>{completedClipCount}/{scenes.length} clips ready</strong>
+              </div>
+              <button
+                className="btn-primary"
+                onClick={handleGenerateAllAndCompile}
+                disabled={isGeneratingAll || isCompiling || scenes.length === 0}
+              >
+                {isGeneratingAll || (autoCompile && !allClipsComplete) ? <Loader2 size={16} className="spin-icon" /> : <Film size={16} />}
+                <span>{isGeneratingAll || (autoCompile && !allClipsComplete) ? 'Generating clips...' : 'Generate all & combine'}</span>
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={handleCompileVideo}
+                disabled={!allClipsComplete || isCompiling}
+              >
+                {isCompiling ? <Loader2 size={16} className="spin-icon" /> : <Download size={16} />}
+                <span>{isCompiling ? 'Combining...' : 'Combine ready clips'}</span>
+              </button>
+            </div>
+
+            {finalVideo?.outputUrl && (
+              <div className="final-video-panel">
+                <strong>Final video</strong>
+                <video className="generated-video" controls src={finalVideo.outputUrl} />
+                <a className="download-link" href={finalVideo.outputUrl} download>
+                  Download MP4
+                </a>
+              </div>
+            )}
 
             {lyriaPlan && (
               <details className="result-details" open>
