@@ -108,6 +108,7 @@ npm run lint
 - `server/index.js` - local API server entry point.
 - `api/[...path].js` - Vercel serverless entry point.
 - `docs/` - product, technical, build, safety, and live setup notes.
+- `docs/todos.md` - current implementation gaps and next steps.
 
 ## License
 
