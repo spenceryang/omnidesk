@@ -792,6 +792,90 @@ button:disabled {
   animation-delay: var(--delay);
 }
 
+.agent-progress-list {
+  display: grid;
+  gap: 6px;
+}
+
+.agent-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.agent-progress-row span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-progress-row b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  color: var(--soft);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.agent-progress-row.working {
+  border-color: rgba(96, 165, 250, 0.38);
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.agent-progress-row.working b {
+  color: var(--blue);
+}
+
+.agent-progress-row.working b::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--blue);
+  animation: agent-pulse 900ms ease-in-out infinite;
+}
+
+.agent-progress-row.pass,
+.agent-progress-row.done {
+  border-color: rgba(52, 211, 153, 0.22);
+}
+
+.agent-progress-row.pass b,
+.agent-progress-row.done b {
+  color: var(--green);
+}
+
+.agent-progress-row.warn {
+  border-color: rgba(251, 191, 36, 0.26);
+  background: rgba(251, 191, 36, 0.07);
+}
+
+.agent-progress-row.warn b {
+  color: var(--amber);
+}
+
+.agent-progress-row.blocked {
+  border-color: rgba(251, 113, 133, 0.34);
+  background: rgba(251, 113, 133, 0.08);
+}
+
+.agent-progress-row.blocked b {
+  color: var(--coral);
+}
+
 .agent-report {
   padding-top: 4px;
 }
@@ -1024,6 +1108,13 @@ button:disabled {
 
   100% {
     transform: translateX(250%);
+  }
+}
+
+@keyframes agent-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.72);
   }
 }
 

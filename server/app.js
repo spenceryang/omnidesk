@@ -492,6 +492,23 @@ ${JSON.stringify(plan || {}, null, 2)}`;
   };
 }
 
+function buildAgentAggregate(results) {
+  return {
+    pass: results.filter((item) => item.result.status === 'pass').length,
+    warn: results.filter((item) => item.result.status === 'warn').length,
+    blocked: results.filter((item) => item.result.status === 'blocked').length,
+    averageScore: Math.round(results.reduce((sum, item) => sum + Number(item.result.score || 0), 0) / Math.max(results.length, 1))
+  };
+}
+
+async function updateAgentReviewRecord(projectId, review) {
+  if (!projectId) return null;
+  return updateProjectRecord(projectId, (record) => ({
+    ...record,
+    agentReview: review
+  }));
+}
+
 function pickMime(file) {
   return file.mimetype || mime.lookup(file.originalname) || 'application/octet-stream';
 }
@@ -1227,6 +1244,46 @@ app.get('/api/live/managed-agents', (_req, res) => {
   });
 });
 
+app.post('/api/live/managed-agent-role', async (req, res, next) => {
+  try {
+    assertConfigured();
+    if (!ai.interactions?.create) {
+      res.status(501).json({
+        ok: false,
+        error: 'This @google/genai build does not expose interactions.create. Update @google/genai or use the REST Interactions API.'
+      });
+      return;
+    }
+
+    const { brief, lyrics, plan, projectId, roleId, priorResults = [] } = req.body;
+    const role = MANAGED_AGENT_ROLES.find((item) => item.id === roleId);
+    if (!role) {
+      res.status(404).json({ ok: false, error: 'Unknown managed-agent role.' });
+      return;
+    }
+
+    const result = await runManagedRole({ role, brief, lyrics, plan });
+    const results = [
+      ...priorResults.filter((item) => item.role?.id !== role.id),
+      result
+    ];
+    const review = {
+      ok: true,
+      agent: managedAgent,
+      status: results.length === MANAGED_AGENT_ROLES.length ? 'completed' : 'running',
+      count: results.length,
+      total: MANAGED_AGENT_ROLES.length,
+      aggregate: buildAgentAggregate(results),
+      results
+    };
+
+    await updateAgentReviewRecord(projectId, review);
+    res.json({ ok: true, result, review });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post('/api/live/managed-agent-swarm', async (req, res, next) => {
   try {
     assertConfigured();
@@ -1248,26 +1305,18 @@ app.post('/api/live/managed-agent-swarm', async (req, res, next) => {
       results.push(await runManagedRole({ role, brief, lyrics, plan }));
     }
 
-    const aggregate = {
-      pass: results.filter((item) => item.result.status === 'pass').length,
-      warn: results.filter((item) => item.result.status === 'warn').length,
-      blocked: results.filter((item) => item.result.status === 'blocked').length,
-      averageScore: Math.round(results.reduce((sum, item) => sum + Number(item.result.score || 0), 0) / Math.max(results.length, 1))
-    };
+    const aggregate = buildAgentAggregate(results);
 
     const review = {
       ok: true,
       agent: managedAgent,
+      status: 'completed',
       count: results.length,
+      total: selected.length,
       aggregate,
       results
     };
-    if (projectId) {
-      await updateProjectRecord(projectId, (record) => ({
-        ...record,
-        agentReview: review
-      }));
-    }
+    await updateAgentReviewRecord(projectId, review);
     res.json(review);
   } catch (err) {
     next(err);

@@ -121,6 +121,15 @@ export async function getManagedAgents() {
   return parseResponse(response);
 }
 
+export async function runManagedAgentRole({ brief, lyrics, plan, projectId, roleId, priorResults }) {
+  const response = await fetch('/api/live/managed-agent-role', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ brief, lyrics, plan, projectId, roleId, priorResults })
+  });
+  return parseResponse(response);
+}
+
 export async function runManagedAgentSwarm({ brief, lyrics, plan, selectedAgentIds, projectId }) {
   const response = await fetch('/api/live/managed-agent-swarm', {
     method: 'POST',

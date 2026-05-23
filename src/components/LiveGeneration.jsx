@@ -17,7 +17,7 @@ import {
   createLyriaTrack,
   getManagedAgents,
   getVideoJob,
-  runManagedAgentSwarm,
+  runManagedAgentRole,
   startVideoJob
 } from '../services/liveApi';
 
@@ -101,6 +101,50 @@ function AgentWorkerAnimation({ roles = [] }) {
   );
 }
 
+function AgentProgressList({ roles = [], progress, results = [] }) {
+  const resultByRole = new Map(results.map((item) => [item.role.id, item]));
+  const completedRoleIds = new Set(progress?.completedRoleIds || []);
+  const currentRoleId = progress?.currentRoleId;
+
+  return (
+    <div className="agent-progress-list">
+      {roles.map((role) => {
+        const item = resultByRole.get(role.id);
+        const resultStatus = item?.result?.status;
+        const isWorking = role.id === currentRoleId;
+        const isDone = completedRoleIds.has(role.id) || Boolean(item);
+        const status = isWorking ? 'working' : resultStatus || (isDone ? 'done' : 'queued');
+        const label = isWorking ? 'Working' : resultStatus || (isDone ? 'Done' : 'Queued');
+
+        return (
+          <div key={role.id} className={`agent-progress-row ${status}`}>
+            <span>{role.name}</span>
+            <b>{label}</b>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function buildAgentProgressReview({ roles, results, status = 'running' }) {
+  const aggregate = {
+    pass: results.filter((item) => item.result.status === 'pass').length,
+    warn: results.filter((item) => item.result.status === 'warn').length,
+    blocked: results.filter((item) => item.result.status === 'blocked').length,
+    averageScore: Math.round(results.reduce((sum, item) => sum + Number(item.result.score || 0), 0) / Math.max(results.length, 1))
+  };
+
+  return {
+    ok: true,
+    status,
+    count: results.length,
+    total: roles.length,
+    aggregate,
+    results
+  };
+}
+
 export default function LiveGeneration({ health }) {
   const [brief, setBrief] = useState(defaultBrief);
   const [lyrics, setLyrics] = useState('');
@@ -114,6 +158,7 @@ export default function LiveGeneration({ health }) {
   const [musicTrack, setMusicTrack] = useState(null);
   const [managedAgents, setManagedAgents] = useState([]);
   const [swarmResult, setSwarmResult] = useState(null);
+  const [agentProgress, setAgentProgress] = useState(null);
   const [jobs, setJobs] = useState({});
   const [finalVideo, setFinalVideo] = useState(null);
   const [autoCompile, setAutoCompile] = useState(false);
@@ -142,6 +187,7 @@ export default function LiveGeneration({ health }) {
   const allClipsComplete = scenes.length > 0 && completedClipCount === scenes.length;
   const agentReady = agentDeskPassed(swarmResult);
   const agentBlocked = Number(swarmResult?.aggregate?.blocked || 0) > 0;
+  const agentReviewRoles = useMemo(() => managedAgents.length ? managedAgents : [], [managedAgents]);
 
   useEffect(() => {
     getManagedAgents()
@@ -211,6 +257,52 @@ export default function LiveGeneration({ health }) {
     setAssets(Array.from(event.target.files || []));
   };
 
+  const runAgentDesk = useCallback(async ({ targetPlan, targetProjectId }) => {
+    let roles = agentReviewRoles;
+    if (roles.length === 0) {
+      const response = await getManagedAgents();
+      roles = response.roles || [];
+      setManagedAgents(roles);
+    }
+
+    if (!targetPlan || roles.length === 0) {
+      throw new Error('Managed-agent roles are still loading. Try again in a moment.');
+    }
+
+    setIsRunningSwarm(true);
+    setError('');
+    setSwarmResult(null);
+    setAgentProgress({ currentRoleId: roles[0]?.id || null, completedRoleIds: [], total: roles.length });
+
+    let results = [];
+    try {
+      for (const role of roles) {
+        setAgentProgress({
+          currentRoleId: role.id,
+          completedRoleIds: results.map((item) => item.role.id),
+          total: roles.length
+        });
+        const response = await runManagedAgentRole({
+          brief,
+          lyrics,
+          plan: targetPlan,
+          projectId: targetProjectId,
+          roleId: role.id,
+          priorResults: results
+        });
+        results = response.review?.results || [...results, response.result];
+        setSwarmResult(buildAgentProgressReview({ roles, results }));
+      }
+
+      const finalReview = buildAgentProgressReview({ roles, results, status: 'completed' });
+      setSwarmResult(finalReview);
+      setAgentProgress({ currentRoleId: null, completedRoleIds: roles.map((role) => role.id), total: roles.length });
+      return finalReview;
+    } finally {
+      setIsRunningSwarm(false);
+    }
+  }, [agentReviewRoles, brief, lyrics]);
+
   const handleCreatePlan = async (event) => {
     event.preventDefault();
     setError('');
@@ -219,6 +311,7 @@ export default function LiveGeneration({ health }) {
     setLyriaPlan(null);
     setMusicTrack(null);
     setSwarmResult(null);
+    setAgentProgress(null);
     setJobs({});
     setFinalVideo(null);
     setAutoCompile(false);
@@ -235,20 +328,17 @@ export default function LiveGeneration({ health }) {
         assets
       });
       setPlanResponse(response);
-      setProjectId(response.projectId || response.project?.id || null);
-      setIsRunningSwarm(true);
-      const agentResponse = await runManagedAgentSwarm({
-        brief,
-        lyrics,
-        plan: response.plan,
-        projectId: response.projectId || response.project?.id || null
+      const nextProjectId = response.projectId || response.project?.id || null;
+      setProjectId(nextProjectId);
+      setIsPlanning(false);
+      await runAgentDesk({
+        targetPlan: response.plan,
+        targetProjectId: nextProjectId
       });
-      setSwarmResult(agentResponse);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsPlanning(false);
-      setIsRunningSwarm(false);
     }
   };
 
@@ -410,17 +500,10 @@ export default function LiveGeneration({ health }) {
 
   const handleRegenerateAgentDesk = async () => {
     if (!plan) return;
-    setIsRunningSwarm(true);
-    setError('');
-    setSwarmResult(null);
-
     try {
-      const response = await runManagedAgentSwarm({ brief, lyrics, plan, projectId });
-      setSwarmResult(response);
+      await runAgentDesk({ targetPlan: plan, targetProjectId: projectId });
     } catch (err) {
       setError(err.message);
-    } finally {
-      setIsRunningSwarm(false);
     }
   };
 
@@ -550,10 +633,21 @@ export default function LiveGeneration({ health }) {
                   <span>Gemini Managed Agents</span>
                   <strong>Production Desk</strong>
                 </div>
-                <b>{isRunningSwarm ? 'Reviewing' : agentReady ? 'Approved' : agentBlocked ? 'Blocked' : 'Required'}</b>
+                <b>
+                  {isRunningSwarm
+                    ? `${swarmResult?.count || 0}/${agentReviewRoles.length || managedAgents.length || 12}`
+                    : agentReady ? 'Approved' : agentBlocked ? 'Blocked' : 'Required'}
+                </b>
               </div>
               <p>Omnidesk uses Gemini Managed Agents as a production desk. A swarm of specialist agents reviews the creator brief, lyrics, assets, IP safety, music continuity, Veo prompts, and final edit readiness before generation.</p>
               {(isRunningSwarm || !swarmResult) && <AgentWorkerAnimation roles={managedAgents} />}
+              {agentReviewRoles.length > 0 && (
+                <AgentProgressList
+                  roles={agentReviewRoles}
+                  progress={agentProgress}
+                  results={swarmResult?.results || []}
+                />
+              )}
               {swarmResult?.aggregate && (
                 <div className="swarm-metrics">
                   <div><strong>{swarmResult.aggregate.pass}</strong><span>Pass</span></div>
