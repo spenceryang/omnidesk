@@ -41,7 +41,7 @@ export default function App() {
           <div>
             <div className="eyebrow">
               <Film size={15} />
-              2 scenes · 30 seconds · managed agents
+              2 scenes · 16 seconds · managed agents
             </div>
             <h1>Create music videos and discover what other creators made.</h1>
             <p>Plan a rights-safe video from lyrics, a prompt, or creator assets, then generate clips and publish the result to Discover.</p>

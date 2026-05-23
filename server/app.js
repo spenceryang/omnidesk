@@ -518,7 +518,7 @@ async function waitForGeminiFileActive(uploaded, originalName) {
 }
 
 function productionPrompt({ brief, targetFormat, durationSeconds, sceneCount, constraints, lyrics }, uploadedFiles) {
-  const targetDuration = Number(durationSeconds || 30);
+  const targetDuration = Number(durationSeconds || 16);
   const targetSceneCount = Number(sceneCount || 2);
   const narrativeSceneDuration = Math.max(4, Math.round(targetDuration / targetSceneCount));
   const generatedClipDuration = Math.min(8, Math.max(4, narrativeSceneDuration));
@@ -722,7 +722,7 @@ app.post('/api/live/plan', upload.array('assets', 8), async (req, res, next) => 
       brief: req.body.brief || '',
       lyrics: req.body.lyrics || '',
       targetFormat: req.body.targetFormat || plan.format || '9:16',
-      durationSeconds: Number(req.body.durationSeconds || plan.durationSeconds || 30),
+      durationSeconds: Number(req.body.durationSeconds || plan.durationSeconds || 16),
       sceneCount: Number(req.body.sceneCount || plan.scenes?.length || 2),
       createdAt: new Date().toISOString(),
       models: {
