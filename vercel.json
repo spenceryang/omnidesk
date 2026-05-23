@@ -2,6 +2,12 @@
   "functions": {
     "api/[...path].js": {
       "maxDuration": 60
+    },
+    "api/live/*.js": {
+      "maxDuration": 60
+    },
+    "api/live/videos/[jobId].js": {
+      "maxDuration": 60
     }
   }
 }
