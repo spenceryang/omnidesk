@@ -38,6 +38,7 @@ const upload = multer({ dest: uploadDir, limits: { fileSize: 80 * 1024 * 1024 } 
 const plannerModel = process.env.GEMINI_PLANNER_MODEL || 'gemini-3-flash-preview';
 const videoModel = process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview';
 const managedAgent = process.env.GEMINI_MANAGED_AGENT || 'antigravity-preview-05-2026';
+const lyriaModel = process.env.GEMINI_LYRIA_MODEL || 'lyria-3-clip-preview';
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
@@ -194,6 +195,7 @@ function publicProject(record) {
     clips: record.clips || [],
     finalVideo: record.finalVideo || null,
     audioPlan: record.audioPlan || null,
+    musicTrack: record.musicTrack || null,
     agentReview: record.agentReview || null,
     uploadedAssets: record.uploadedAssets || [],
     lyrics: record.lyrics || '',
@@ -381,6 +383,29 @@ async function ensureClipLocalFile(clip, index) {
   }
 
   const localPath = path.join(generatedDir, `compile-input-${crypto.randomUUID()}-${index}.mp4`);
+  await fs.writeFile(localPath, Buffer.from(await response.arrayBuffer()));
+  return localPath;
+}
+
+async function ensureAudioLocalFile(audio) {
+  const outputUrl = String(audio?.outputUrl || '');
+  if (!outputUrl) return null;
+
+  if (outputUrl.startsWith('/api/outputs/')) {
+    return path.join(generatedDir, path.basename(outputUrl));
+  }
+
+  if (!/^https?:\/\//.test(outputUrl)) {
+    throw new Error('Music track has no usable output URL.');
+  }
+
+  const response = await fetch(outputUrl);
+  if (!response.ok) {
+    throw new Error('Could not download music track for compilation.');
+  }
+
+  const extension = mime.extension(audio.contentType || 'audio/mpeg') || 'mp3';
+  const localPath = path.join(generatedDir, `compile-audio-${crypto.randomUUID()}.${extension}`);
   await fs.writeFile(localPath, Buffer.from(await response.arrayBuffer()));
   return localPath;
 }
@@ -612,6 +637,7 @@ app.get('/api/health', (_req, res) => {
     configured: Boolean(ai),
     plannerModel,
     videoModel,
+    lyriaModel,
     managedAgent,
     managedAgentCount: MANAGED_AGENT_ROLES.length,
     storage: usesBlobStorage ? 'vercel blob' : 'local filesystem',
@@ -728,6 +754,7 @@ app.post('/api/live/plan', upload.array('assets', 8), async (req, res, next) => 
       models: {
         planner: plannerModel,
         video: videoModel,
+        lyria: lyriaModel,
         managedAgent
       },
       uploadedAssets: uploadedFiles.map((file) => ({
@@ -740,6 +767,7 @@ app.post('/api/live/plan', upload.array('assets', 8), async (req, res, next) => 
       clips: [],
       finalVideo: null,
       audioPlan: null,
+      musicTrack: null,
       agentReview: null,
       reactions: { loves: 0 },
       comments: []
@@ -902,7 +930,7 @@ app.get('/api/live/videos/:jobId', async (req, res, next) => {
 
 app.post('/api/live/compile', async (req, res, next) => {
   try {
-    const { projectId, clips = [], title = 'omnidesk-final' } = req.body;
+    const { projectId, clips = [], title = 'omnidesk-final', musicTrack = null } = req.body;
     if (!Array.isArray(clips) || clips.length === 0) {
       res.status(400).json({ ok: false, error: 'No completed clips were provided.' });
       return;
@@ -935,6 +963,9 @@ app.post('/api/live/compile', async (req, res, next) => {
     const listPath = path.join(generatedDir, `${compileId}.txt`);
     const outputFilename = `${safeTitle}-${compileId}.mp4`;
     const outputPath = path.join(generatedDir, outputFilename);
+    const videoOnlyPath = musicTrack?.outputUrl
+      ? path.join(generatedDir, `${safeTitle}-${compileId}-video.mp4`)
+      : outputPath;
     const concatList = inputPaths
       .map((inputPath) => `file '${inputPath.replaceAll("'", "'\\''")}'`)
       .join('\n');
@@ -946,8 +977,23 @@ app.post('/api/live/compile', async (req, res, next) => {
       '-safe', '0',
       '-i', listPath,
       '-c', 'copy',
-      outputPath
+      videoOnlyPath
     ]);
+
+    if (musicTrack?.outputUrl) {
+      const audioPath = await ensureAudioLocalFile(musicTrack);
+      await runFfmpeg([
+        '-y',
+        '-i', videoOnlyPath,
+        '-i', audioPath,
+        '-map', '0:v:0',
+        '-map', '1:a:0',
+        '-c:v', 'copy',
+        '-c:a', 'aac',
+        '-shortest',
+        outputPath
+      ]);
+    }
 
     const stored = await storeMediaFile({
       localPath: outputPath,
@@ -959,6 +1005,7 @@ app.post('/api/live/compile', async (req, res, next) => {
       downloadUrl: stored.downloadUrl || stored.url,
       storage: stored.storage,
       clipCount: inputPaths.length,
+      musicTrack: musicTrack || null,
       completedAt: new Date().toISOString()
     };
 
@@ -1028,6 +1075,84 @@ JSON shape:
       }));
     }
     res.json({ ok: true, model: plannerModel, plan: audioPlan });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/live/lyria-track', async (req, res, next) => {
+  try {
+    assertConfigured();
+    const { brief, lyrics, plan, projectId, durationSeconds = 16 } = req.body;
+    const response = await ai.models.generateContent({
+      model: lyriaModel,
+      contents: `Create one continuous rights-safe music track for a ${durationSeconds}-second music video.
+
+The track must feel like a single cohesive song bed across every visual scene. Do not create separate cues per scene.
+
+Creative direction:
+${brief || ''}
+
+Lyrics or hook:
+${lyrics || 'Instrumental only, no intelligible lyrics.'}
+
+Music plan:
+${JSON.stringify(plan?.musicAnalysis || {}, null, 2)}
+
+Visual summary:
+${plan?.styleBible?.logline || plan?.title || ''}
+
+Return audio plus any concise structure notes. If the model emits a longer clip, the app will trim it to the final video duration.`
+    });
+
+    const parts = response.candidates?.[0]?.content?.parts || [];
+    const textNotes = [];
+    let audioData = null;
+    let contentType = 'audio/mpeg';
+
+    for (const part of parts) {
+      if (part.text) textNotes.push(part.text);
+      if (part.inlineData?.data) {
+        audioData = Buffer.from(part.inlineData.data, 'base64');
+        contentType = part.inlineData.mimeType || contentType;
+      }
+    }
+
+    if (!audioData) {
+      res.status(502).json({ ok: false, error: 'Lyria did not return audio for this prompt.' });
+      return;
+    }
+
+    const extension = mime.extension(contentType) || 'mp3';
+    const filename = `lyria-track-${crypto.randomUUID()}.${extension}`;
+    const localPath = path.join(generatedDir, filename);
+    await fs.writeFile(localPath, audioData);
+
+    const stored = await storeMediaFile({
+      localPath,
+      pathname: `omnidesk/projects/${projectId || 'unassigned'}/audio/${filename}`,
+      contentType
+    });
+
+    const musicTrack = {
+      outputUrl: stored.url,
+      downloadUrl: stored.downloadUrl || stored.url,
+      storage: stored.storage,
+      model: lyriaModel,
+      contentType,
+      notes: textNotes.join('\n\n'),
+      durationSeconds: Number(durationSeconds || 16),
+      completedAt: new Date().toISOString()
+    };
+
+    if (projectId) {
+      await updateProjectRecord(projectId, (record) => ({
+        ...record,
+        musicTrack
+      }));
+    }
+
+    res.json({ ok: true, musicTrack });
   } catch (err) {
     next(err);
   }

@@ -80,11 +80,11 @@ export async function getVideoJob(jobId) {
   return parseResponse(response);
 }
 
-export async function compileVideo({ projectId, title, clips }) {
+export async function compileVideo({ projectId, title, clips, musicTrack }) {
   const response = await fetch('/api/live/compile', {
     method: 'POST',
     headers: jsonHeaders,
-    body: JSON.stringify({ projectId, title, clips })
+    body: JSON.stringify({ projectId, title, clips, musicTrack })
   });
   return parseResponse(response);
 }
@@ -94,6 +94,15 @@ export async function createLyriaPlan({ brief, plan, projectId }) {
     method: 'POST',
     headers: jsonHeaders,
     body: JSON.stringify({ brief, plan, projectId })
+  });
+  return parseResponse(response);
+}
+
+export async function createLyriaTrack({ brief, lyrics, plan, projectId, durationSeconds }) {
+  const response = await fetch('/api/live/lyria-track', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ brief, lyrics, plan, projectId, durationSeconds })
   });
   return parseResponse(response);
 }

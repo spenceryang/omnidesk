@@ -14,6 +14,7 @@ import {
   compileVideo,
   createLivePlan,
   createLyriaPlan,
+  createLyriaTrack,
   getManagedAgents,
   getVideoJob,
   runManagedAgentSwarm,
@@ -91,6 +92,7 @@ export default function LiveGeneration({ health }) {
   const [planResponse, setPlanResponse] = useState(null);
   const [projectId, setProjectId] = useState(null);
   const [lyriaPlan, setLyriaPlan] = useState(null);
+  const [musicTrack, setMusicTrack] = useState(null);
   const [managedAgents, setManagedAgents] = useState([]);
   const [swarmResult, setSwarmResult] = useState(null);
   const [jobs, setJobs] = useState({});
@@ -100,6 +102,7 @@ export default function LiveGeneration({ health }) {
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [isCompiling, setIsCompiling] = useState(false);
   const [isMakingLyriaPlan, setIsMakingLyriaPlan] = useState(false);
+  const [isGeneratingMusicTrack, setIsGeneratingMusicTrack] = useState(false);
   const [isRunningSwarm, setIsRunningSwarm] = useState(false);
   const [error, setError] = useState('');
 
@@ -193,6 +196,7 @@ export default function LiveGeneration({ health }) {
     setPlanResponse(null);
     setProjectId(null);
     setLyriaPlan(null);
+    setMusicTrack(null);
     setSwarmResult(null);
     setJobs({});
     setFinalVideo(null);
@@ -257,15 +261,40 @@ export default function LiveGeneration({ health }) {
     }
   };
 
+  const generateMusicTrack = useCallback(async () => {
+    if (!plan) return null;
+    setError('');
+    setIsGeneratingMusicTrack(true);
+
+    try {
+      const response = await createLyriaTrack({
+        brief,
+        lyrics,
+        plan,
+        projectId,
+        durationSeconds
+      });
+      setMusicTrack(response.musicTrack);
+      return response.musicTrack;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsGeneratingMusicTrack(false);
+    }
+  }, [brief, durationSeconds, lyrics, plan, projectId]);
+
   const handleCompileVideo = useCallback(async () => {
     if (!plan || !allClipsComplete) return;
     setError('');
     setIsCompiling(true);
     try {
+      const track = musicTrack || await generateMusicTrack();
       const response = await compileVideo({
         projectId,
         title: plan.title || 'omnidesk-final',
-        clips: completedClips
+        clips: completedClips,
+        musicTrack: track
       });
       setFinalVideo(response);
       setAutoCompile(false);
@@ -275,7 +304,7 @@ export default function LiveGeneration({ health }) {
     } finally {
       setIsCompiling(false);
     }
-  }, [allClipsComplete, completedClips, plan, projectId]);
+  }, [allClipsComplete, completedClips, generateMusicTrack, musicTrack, plan, projectId]);
 
   useEffect(() => {
     if (autoCompile && allClipsComplete && !isCompiling && !finalVideo) {
@@ -460,6 +489,11 @@ export default function LiveGeneration({ health }) {
                 <span>Plan music cues</span>
               </button>
 
+              <button className="btn-secondary" onClick={generateMusicTrack} disabled={isGeneratingMusicTrack}>
+                {isGeneratingMusicTrack ? <Loader2 size={16} className="spin-icon" /> : <Music size={16} />}
+                <span>{musicTrack ? 'Regenerate Lyria track' : 'Generate Lyria track'}</span>
+              </button>
+
               <button className="btn-primary" onClick={handleManagedAgentSwarm} disabled={isRunningSwarm}>
                 {isRunningSwarm ? <Loader2 size={16} className="spin-icon" /> : <Sparkles size={16} />}
                 <span>{isRunningSwarm ? 'Checking...' : 'Run agent review'}</span>
@@ -497,6 +531,14 @@ export default function LiveGeneration({ health }) {
                 <a className="download-link" href={finalVideo.outputUrl} download>
                   Download MP4
                 </a>
+              </div>
+            )}
+
+            {musicTrack?.outputUrl && (
+              <div className="final-video-panel">
+                <strong>Lyria music track</strong>
+                <audio controls src={musicTrack.outputUrl} />
+                <small>Used as the continuous soundtrack when combining clips.</small>
               </div>
             )}
 
