@@ -3,10 +3,13 @@
     "api/[...path].js": {
       "maxDuration": 60
     },
-    "api/live/*.js": {
+    "api/live/[...path].js": {
       "maxDuration": 60
     },
-    "api/live/videos/[jobId].js": {
+    "api/discover/[projectId]/love.js": {
+      "maxDuration": 60
+    },
+    "api/discover/[projectId]/comments.js": {
       "maxDuration": 60
     }
   }
