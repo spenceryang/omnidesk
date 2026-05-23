@@ -390,12 +390,18 @@ app.post('/api/live/videos', async (req, res, next) => {
       return;
     }
 
+    const clipDurationSeconds = Number(durationSeconds || 8);
+    if (!Number.isFinite(clipDurationSeconds) || clipDurationSeconds <= 0) {
+      res.status(400).json({ ok: false, error: 'durationSeconds must be a positive number.' });
+      return;
+    }
+
     const operation = await ai.models.generateVideos({
       model: videoModel,
       prompt,
       config: {
         aspectRatio,
-        durationSeconds: String(durationSeconds),
+        durationSeconds: clipDurationSeconds,
         resolution,
         negativePrompt: negativePrompt || undefined
       }

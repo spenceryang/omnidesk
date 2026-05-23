@@ -314,12 +314,12 @@ export default function LiveGeneration({ health }) {
             <div className="action-row">
               <button className="btn-secondary" onClick={handleLyriaPlan} disabled={isMakingLyriaPlan}>
                 {isMakingLyriaPlan ? <Loader2 size={16} className="spin-icon" /> : <Music size={16} />}
-                <span>Audio plan</span>
+                <span>Plan music cues</span>
               </button>
 
               <button className="btn-primary" onClick={handleManagedAgentSwarm} disabled={isRunningSwarm}>
                 {isRunningSwarm ? <Loader2 size={16} className="spin-icon" /> : <Sparkles size={16} />}
-                <span>{isRunningSwarm ? 'Checking...' : 'Agent check'}</span>
+                <span>{isRunningSwarm ? 'Checking...' : 'Run agent review'}</span>
               </button>
             </div>
 
