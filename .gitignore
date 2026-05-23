@@ -28,3 +28,4 @@ exports/
 tmp/
 server/uploads/
 server/generated/
+.vercel
