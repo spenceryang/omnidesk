@@ -955,6 +955,58 @@ button:disabled {
   color: var(--coral);
 }
 
+.agent-improvement-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-radius: var(--radius);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.agent-improvement-panel.ready {
+  border-color: rgba(52, 211, 153, 0.28);
+  background: rgba(52, 211, 153, 0.07);
+}
+
+.agent-improvement-panel > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.agent-improvement-panel span,
+.agent-improvement-panel small {
+  color: var(--soft);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.agent-improvement-panel small {
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-transform: none;
+}
+
+.agent-change-log {
+  display: grid;
+  gap: 8px;
+}
+
+.agent-change-log ul {
+  margin: 0;
+  padding: 12px 12px 12px 28px;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.agent-change-log li + li {
+  margin-top: 6px;
+}
+
 .agent-report {
   padding-top: 4px;
 }

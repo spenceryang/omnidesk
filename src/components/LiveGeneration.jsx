@@ -11,6 +11,7 @@ import {
   Wand2
 } from 'lucide-react';
 import {
+  applyAgentImprovements,
   compileVideo,
   createLivePlan,
   createLyriaPlan,
@@ -197,6 +198,9 @@ export default function LiveGeneration({ health }) {
   const [isMakingLyriaPlan, setIsMakingLyriaPlan] = useState(false);
   const [isGeneratingMusicTrack, setIsGeneratingMusicTrack] = useState(false);
   const [isRunningSwarm, setIsRunningSwarm] = useState(false);
+  const [isApplyingAgentImprovements, setIsApplyingAgentImprovements] = useState(false);
+  const [agentImprovement, setAgentImprovement] = useState(null);
+  const [agentRecommendationsDismissed, setAgentRecommendationsDismissed] = useState(false);
   const [error, setError] = useState('');
 
   const plan = planResponse?.plan;
@@ -341,6 +345,8 @@ export default function LiveGeneration({ health }) {
     setMusicTrack(null);
     setSwarmResult(null);
     setAgentProgress(null);
+    setAgentImprovement(null);
+    setAgentRecommendationsDismissed(false);
     setJobs({});
     setFinalVideo(null);
     setAutoCompile(false);
@@ -524,10 +530,45 @@ export default function LiveGeneration({ health }) {
 
   const handleRegenerateAgentDesk = async () => {
     if (!plan) return;
+    setAgentRecommendationsDismissed(false);
     try {
       await runAgentDesk({ targetPlan: plan, targetProjectId: projectId });
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleApplyAgentImprovements = async () => {
+    if (!plan || !swarmResult?.results?.length) return;
+    setError('');
+    setIsApplyingAgentImprovements(true);
+
+    try {
+      const response = await applyAgentImprovements({
+        brief,
+        lyrics,
+        plan,
+        projectId,
+        agentReview: swarmResult
+      });
+      setPlanResponse((prev) => ({
+        ...(prev || {}),
+        plan: response.plan,
+        project: response.project || prev?.project
+      }));
+      setAgentImprovement(response.improvement);
+      setAgentRecommendationsDismissed(false);
+      setSwarmResult(null);
+      setAgentProgress(null);
+      setLyriaPlan(null);
+      setMusicTrack(null);
+      setJobs({});
+      setFinalVideo(null);
+      setAutoCompile(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsApplyingAgentImprovements(false);
     }
   };
 
@@ -690,6 +731,52 @@ export default function LiveGeneration({ health }) {
                 <small>{swarmResult ? 'Generation is locked until the managed-agent desk has no blockers.' : 'Run this desk manually when the scene plan is ready for review.'}</small>
               )}
             </section>
+
+            {swarmResult && !agentRecommendationsDismissed && (
+              <section className="agent-improvement-panel">
+                <div>
+                  <span>Optional agent edits</span>
+                  <strong>Improve this plan from recommendations</strong>
+                  <small>Applies the four agents' findings to the scene plan, Veo prompts, safety notes, and music direction. You can ignore this and use the current plan.</small>
+                </div>
+                <div className="action-row">
+                  <button className="btn-primary" onClick={handleApplyAgentImprovements} disabled={isApplyingAgentImprovements || isRunningSwarm}>
+                    {isApplyingAgentImprovements ? <Loader2 size={16} className="spin-icon" /> : <Sparkles size={16} />}
+                    <span>{isApplyingAgentImprovements ? 'Applying edits...' : 'Apply agent improvements'}</span>
+                  </button>
+                  <button className="btn-secondary" onClick={() => setAgentRecommendationsDismissed(true)} disabled={isApplyingAgentImprovements}>
+                    Ignore
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {agentImprovement && (
+              <section className="agent-improvement-panel ready">
+                <div>
+                  <span>Agent edits applied</span>
+                  <strong>{agentImprovement.summary || 'Plan updated from managed-agent recommendations.'}</strong>
+                  <small>Run the Managed Agent Production Desk again to review the updated plan before generation.</small>
+                </div>
+                {agentImprovement.changeLog?.length > 0 && (
+                  <div className="agent-change-log">
+                    {agentImprovement.changeLog.map((entry, index) => (
+                      <details key={`${entry.agentName || 'agent'}-${index}`} className="result-details">
+                        <summary>
+                          <span>{entry.agentName || 'Agent'}</span>
+                          <b>{entry.changes?.length || 0} edits</b>
+                        </summary>
+                        <ul>
+                          {(entry.changes || []).map((change, changeIndex) => (
+                            <li key={`${change}-${changeIndex}`}>{change}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
 
             <div className="render-panel">
               <div>

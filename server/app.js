@@ -767,6 +767,114 @@ app.post('/api/live/plan', upload.array('assets', 8), async (req, res, next) => 
   }
 });
 
+app.post('/api/live/apply-agent-improvements', async (req, res, next) => {
+  try {
+    assertConfigured();
+    const { brief, lyrics, plan, projectId, agentReview } = req.body;
+    if (!plan) {
+      res.status(400).json({ ok: false, error: 'Missing plan to improve.' });
+      return;
+    }
+    if (!agentReview?.results?.length) {
+      res.status(400).json({ ok: false, error: 'Run the managed-agent desk before applying recommendations.' });
+      return;
+    }
+
+    const response = await ai.models.generateContent({
+      model: plannerModel,
+      contents: `You are Omnidesk's showrunner editor. Apply the Gemini Managed Agent recommendations to the current music-video plan.
+
+Return JSON only:
+{
+  "plan": <the complete revised plan using the same schema as the input plan>,
+  "changeLog": [{"agentName": string, "changes": string[]}],
+  "summary": string
+}
+
+Rules:
+- Preserve the plan schema exactly: title, format, durationSeconds, musicAnalysis, creatorDna, styleBible, safetyReport, scenes.
+- Preserve the same scene count, scene IDs, aspect ratio, and total duration.
+- Keep each scene.durationSeconds between 4 and 8 inclusive.
+- Apply each agent's recommendations concretely. Do not just restate feedback.
+- IP Safety must replace risky references with original descriptive alternatives.
+- Video Prompt Engineer must rewrite veoPrompt and negativePrompt fields.
+- Creative Director must improve titles, descriptions, visual language, hook, and scene contrast.
+- Music Analyst must improve musicAnalysis and Lyria continuity guidance.
+- Keep the result rights-safe and original.
+
+Creator brief:
+${brief || ''}
+
+Creator lyrics:
+${lyrics || ''}
+
+Current plan:
+${JSON.stringify(plan, null, 2)}
+
+Managed-agent recommendations:
+${JSON.stringify(agentReview.results.map((item) => ({
+  agentName: item.result?.agentName || item.role?.name,
+  status: item.result?.status,
+  score: item.result?.score,
+  findings: item.result?.findings || [],
+  requiredChanges: item.result?.requiredChanges || [],
+  sceneNotes: item.result?.sceneNotes || [],
+  nextAction: item.result?.nextAction || ''
+})), null, 2)}`,
+      config: {
+        responseMimeType: 'application/json'
+      }
+    });
+
+    const improvement = JSON.parse(cleanJson(response.text || '{}'));
+    const improvedPlan = improvement.plan;
+    if (!improvedPlan?.scenes?.length) {
+      res.status(502).json({ ok: false, error: 'Gemini did not return a valid improved scene plan.' });
+      return;
+    }
+
+    let updatedProject = null;
+    if (projectId) {
+      updatedProject = await updateProjectRecord(projectId, (record) => ({
+        ...record,
+        status: 'planned',
+        title: improvedPlan.title || record.title,
+        plan: improvedPlan,
+        clips: [],
+        finalVideo: null,
+        audioPlan: null,
+        musicTrack: null,
+        agentReview: null,
+        agentImprovement: {
+          model: plannerModel,
+          appliedAt: new Date().toISOString(),
+          previousAgentReview: agentReview,
+          changeLog: improvement.changeLog || [],
+          summary: improvement.summary || ''
+        }
+      }));
+
+      if (!updatedProject) {
+        res.status(404).json({ ok: false, error: 'Project not found.' });
+        return;
+      }
+    }
+
+    res.json({
+      ok: true,
+      model: plannerModel,
+      plan: improvedPlan,
+      improvement: {
+        changeLog: improvement.changeLog || [],
+        summary: improvement.summary || ''
+      },
+      project: updatedProject ? publicProject(updatedProject) : null
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post('/api/live/videos', async (req, res, next) => {
   try {
     assertConfigured();

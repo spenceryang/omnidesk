@@ -12,6 +12,7 @@ Live app: [https://omnidesk-seven.vercel.app](https://omnidesk-seven.vercel.app)
 - Defaults to two 8-second scenes for a 16-second music video.
 - Uses Gemini planning to produce scene descriptions, Veo prompts, safety notes, and music structure.
 - Runs a 4-role Gemini Managed Agent production desk across IP safety, Veo prompt quality, creative direction, and music continuity.
+- Lets users optionally apply managed-agent recommendations back into the plan, or ignore them and continue unchanged.
 - Locks generation until the managed-agent desk completes with no blockers.
 - Generates individual scene clips with Veo when the API is configured.
 - Generates one continuous Lyria 3 music track and muxes it over the final video.

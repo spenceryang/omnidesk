@@ -107,6 +107,15 @@ export async function createLyriaTrack({ brief, lyrics, plan, projectId, duratio
   return parseResponse(response);
 }
 
+export async function applyAgentImprovements({ brief, lyrics, plan, projectId, agentReview }) {
+  const response = await fetch('/api/live/apply-agent-improvements', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ brief, lyrics, plan, projectId, agentReview })
+  });
+  return parseResponse(response);
+}
+
 export async function runManagedAgentReview({ brief, plan, projectId }) {
   const response = await fetch('/api/live/managed-agent-review', {
     method: 'POST',
