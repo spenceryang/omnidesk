@@ -32,6 +32,8 @@ const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const videoJobs = new Map();
+const GEMINI_FILE_ACTIVE_TIMEOUT_MS = Number(process.env.GEMINI_FILE_ACTIVE_TIMEOUT_MS || 45_000);
+const GEMINI_FILE_POLL_INTERVAL_MS = Number(process.env.GEMINI_FILE_POLL_INTERVAL_MS || 2_000);
 
 const MANAGED_AGENT_ROLES = [
   {
@@ -200,12 +202,44 @@ async function uploadToGemini(file) {
       displayName: file.originalname
     }
   });
+  const activeFile = await waitForGeminiFileActive(uploaded, file.originalname);
 
   return {
     originalName: file.originalname,
     mimeType,
-    uri: uploaded.uri
+    name: activeFile.name,
+    state: activeFile.state,
+    uri: activeFile.uri
   };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForGeminiFileActive(uploaded, originalName) {
+  if (!uploaded?.name) {
+    throw new Error(`Gemini upload did not return a file name for ${originalName}.`);
+  }
+
+  let current = uploaded;
+  const startedAt = Date.now();
+
+  while (current.state && current.state !== 'ACTIVE') {
+    if (current.state === 'FAILED') {
+      const reason = current.error?.message || JSON.stringify(current.error || {});
+      throw new Error(`Gemini could not process ${originalName}. ${reason}`.trim());
+    }
+
+    if (Date.now() - startedAt > GEMINI_FILE_ACTIVE_TIMEOUT_MS) {
+      throw new Error(`${originalName} is still processing in Gemini Files API. Try a shorter clip, smaller file, or retry in a moment.`);
+    }
+
+    await sleep(GEMINI_FILE_POLL_INTERVAL_MS);
+    current = await ai.files.get({ name: uploaded.name });
+  }
+
+  return current;
 }
 
 function productionPrompt({ brief, targetFormat, durationSeconds, sceneCount, constraints }, uploadedFiles) {
