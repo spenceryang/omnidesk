@@ -21,7 +21,9 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-lockup">
-          <div className="brand-mark">O</div>
+          <div className="brand-mark">
+            <img src="/favicon.svg" alt="" />
+          </div>
           <div>
             <strong>Omnidesk</strong>
             <span>Music video studio</span>
@@ -39,10 +41,10 @@ export default function App() {
           <div>
             <div className="eyebrow">
               <Film size={15} />
-              10 scenes · 60 seconds · managed agents
+              2 scenes · 30 seconds · managed agents
             </div>
-            <h1>Turn a track, prompt, or creator asset into a music video plan.</h1>
-            <p>Build the storyboard, check it with agents, then generate selected clips.</p>
+            <h1>Create music videos and discover what other creators made.</h1>
+            <p>Plan a rights-safe video from lyrics, a prompt, or creator assets, then generate clips and publish the result to Discover.</p>
           </div>
         </section>
 

@@ -20,9 +20,9 @@ import {
   startVideoJob
 } from '../services/liveApi';
 
-const defaultBrief = 'Original one-minute performance music video using my uploaded creator assets. Make it cinematic, rhythmic, and rights-safe. Use 10 coherent scenes with a strong hook, verse, chorus, bridge, final chorus, and outro.';
+const defaultBrief = 'Original 30-second performance music video using my lyrics, prompt, or uploaded creator assets. Make it cinematic, rhythmic, and rights-safe. Use two strong visual chapters that feel like one continuous music video.';
 
-const fixedConstraints = 'Use only original, rights-safe aesthetics. Preserve uploaded creator movement conceptually. No copyrighted characters, named artist imitation, celebrity likeness, or franchise references.';
+const fixedConstraints = 'Use only original, rights-safe aesthetics. Preserve uploaded creator movement conceptually. No copyrighted characters, named artist imitation, celebrity likeness, or franchise references. Keep one continuous music bed across the full video; do not create separate songs per scene.';
 const VIDEO_POLL_INTERVAL_MS = 30_000;
 const MIN_VIDEO_START_INTERVAL_MS = 70_000;
 const MAX_VIDEO_POLLS = 60;
@@ -83,9 +83,10 @@ function SceneGenerationCard({ scene, onStart, job, fallbackDuration }) {
 
 export default function LiveGeneration({ health }) {
   const [brief, setBrief] = useState(defaultBrief);
+  const [lyrics, setLyrics] = useState('');
   const [targetFormat, setTargetFormat] = useState('9:16');
-  const [durationSeconds, setDurationSeconds] = useState(60);
-  const [sceneCount, setSceneCount] = useState(10);
+  const [durationSeconds, setDurationSeconds] = useState(30);
+  const [sceneCount, setSceneCount] = useState(2);
   const [assets, setAssets] = useState([]);
   const [planResponse, setPlanResponse] = useState(null);
   const [projectId, setProjectId] = useState(null);
@@ -205,6 +206,7 @@ export default function LiveGeneration({ health }) {
         durationSeconds,
         sceneCount,
         constraints: fixedConstraints,
+        lyrics,
         assets
       });
       setPlanResponse(response);
@@ -362,6 +364,17 @@ export default function LiveGeneration({ health }) {
           />
         </label>
 
+        <label className="lyrics-field">
+          <span>Lyrics</span>
+          <textarea
+            value={lyrics}
+            onChange={(event) => setLyrics(event.target.value)}
+            rows={4}
+            className="studio-textarea compact"
+            placeholder="Paste lyrics, hook, chorus, or rough vocal idea"
+          />
+        </label>
+
         <div className="control-row">
           <label>
             <span>Format</span>
@@ -384,8 +397,8 @@ export default function LiveGeneration({ health }) {
         <label className="upload-strip">
           <Upload size={18} />
           <div>
-            <strong>{assets.length ? `${assets.length} asset${assets.length === 1 ? '' : 's'} added` : 'Add assets'}</strong>
-            <span>{assets.length ? assets.map((file) => file.name).join(', ') : 'Audio, video, images, lyrics'}</span>
+          <strong>{assets.length ? `${assets.length} asset${assets.length === 1 ? '' : 's'} added` : 'Add assets'}</strong>
+            <span>{assets.length ? assets.map((file) => file.name).join(', ') : 'Audio, video, images'}</span>
           </div>
           <input type="file" multiple onChange={handleAssets} />
         </label>
@@ -399,7 +412,7 @@ export default function LiveGeneration({ health }) {
 
         <button className="btn-primary composer-cta" disabled={isPlanning || !health?.configured}>
           {isPlanning ? <Loader2 size={16} className="spin-icon" /> : <Wand2 size={16} />}
-          <span>{isPlanning ? 'Planning...' : 'Create 10-scene plan'}</span>
+          <span>{isPlanning ? 'Planning...' : 'Create music video plan'}</span>
         </button>
       </form>
 
@@ -457,7 +470,7 @@ export default function LiveGeneration({ health }) {
               <div>
                 <span>Final render</span>
                 <strong>{completedClipCount}/{scenes.length} clips ready</strong>
-                <small>Generate all runs one Veo clip at a time. A 10-scene render uses 10 daily Veo requests.</small>
+                <small>Generate all runs one Veo clip at a time. The default 2-scene render uses 2 daily Veo requests.</small>
               </div>
               <button
                 className="btn-primary"

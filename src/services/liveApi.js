@@ -22,13 +22,31 @@ export async function getDiscoverProjects() {
   return parseResponse(response);
 }
 
-export async function createLivePlan({ brief, targetFormat, durationSeconds, sceneCount, constraints, assets }) {
+export async function loveDiscoverProject(projectId) {
+  const response = await fetch(`/api/discover/${projectId}/love`, {
+    method: 'POST',
+    headers: jsonHeaders
+  });
+  return parseResponse(response);
+}
+
+export async function addDiscoverComment({ projectId, author, body }) {
+  const response = await fetch(`/api/discover/${projectId}/comments`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ author, body })
+  });
+  return parseResponse(response);
+}
+
+export async function createLivePlan({ brief, targetFormat, durationSeconds, sceneCount, constraints, lyrics, assets }) {
   const formData = new FormData();
   formData.append('brief', brief);
   formData.append('targetFormat', targetFormat);
   formData.append('durationSeconds', String(durationSeconds));
-  formData.append('sceneCount', String(sceneCount || 10));
+  formData.append('sceneCount', String(sceneCount || 2));
   formData.append('constraints', constraints);
+  formData.append('lyrics', lyrics || '');
   for (const asset of assets || []) {
     formData.append('assets', asset);
   }

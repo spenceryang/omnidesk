@@ -195,7 +195,12 @@ function publicProject(record) {
     finalVideo: record.finalVideo || null,
     audioPlan: record.audioPlan || null,
     agentReview: record.agentReview || null,
-    uploadedAssets: record.uploadedAssets || []
+    uploadedAssets: record.uploadedAssets || [],
+    lyrics: record.lyrics || '',
+    reactions: {
+      loves: Number(record.reactions?.loves || 0)
+    },
+    comments: record.comments || []
   };
 }
 
@@ -512,9 +517,9 @@ async function waitForGeminiFileActive(uploaded, originalName) {
   return current;
 }
 
-function productionPrompt({ brief, targetFormat, durationSeconds, sceneCount, constraints }, uploadedFiles) {
-  const targetDuration = Number(durationSeconds || 60);
-  const targetSceneCount = Number(sceneCount || 10);
+function productionPrompt({ brief, targetFormat, durationSeconds, sceneCount, constraints, lyrics }, uploadedFiles) {
+  const targetDuration = Number(durationSeconds || 30);
+  const targetSceneCount = Number(sceneCount || 2);
   const sceneDuration = Math.max(4, Math.round(targetDuration / targetSceneCount));
   const assetSummary = uploadedFiles.map((file, index) => (
     `${index + 1}. ${file.originalName} (${file.mimeType})`
@@ -534,6 +539,9 @@ Target generated clip duration per scene: ${sceneDuration} seconds
 Creator constraints:
 ${constraints || 'Original, rights-safe, no named franchise or artist imitation.'}
 
+Lyrics or music text:
+${lyrics?.trim() || 'No pasted lyrics. Infer a rights-safe instrumental or vocal direction from the brief.'}
+
 Uploaded assets:
 ${assetSummary || 'No assets uploaded.'}
 
@@ -544,6 +552,7 @@ Return this JSON shape:
   "durationSeconds": number,
   "musicAnalysis": {
     "bpmEstimate": number | null,
+    "unifiedTrackDirection": string,
     "sections": [{"label": "intro|verse|chorus|bridge|outro|drop|other", "startSec": number, "endSec": number, "mood": string, "energy": number}]
   },
   "creatorDna": {
@@ -588,9 +597,10 @@ Rules:
 - Return exactly ${targetSceneCount} scenes for a ${targetDuration}-second music video.
 - Each scene should be roughly ${sceneDuration} seconds and should be directly generatable as a standalone Veo clip.
 - Use scene IDs scene_01 through scene_${String(targetSceneCount).padStart(2, '0')}.
-- Cover the whole music-video arc: hook/open, world setup, verse 1, motif reveal, chorus 1, post-chorus, bridge, final chorus, climax, outro/resolution.
+- Keep one continuous music track across the full ${targetDuration} seconds. Do not create a separate song, vocal take, or beat per scene.
+- Treat scenes as visual chapters under one shared track. The first scene should establish hook/verse energy; the last scene should land the chorus/climax/outro.
 - If uploaded dance video is present, preserve movement timing conceptually without impersonating identity unless consent is clear.
-- Make scenes 1, 5, and 9 the highest demo-impact moments.`;
+- Make every scene high-impact enough to demo on its own.`;
 }
 
 app.get('/api/health', (_req, res) => {
@@ -611,11 +621,67 @@ app.get('/api/health', (_req, res) => {
 app.get('/api/discover', async (_req, res, next) => {
   try {
     const records = await listProjectRecords();
+    const playableRecords = records.filter((record) => record.finalVideo?.outputUrl || record.clips?.some((clip) => clip.outputUrl));
     res.json({
       ok: true,
       storage: usesBlobStorage ? 'vercel-blob' : 'local',
-      projects: records.map(publicProject)
+      projects: playableRecords.map(publicProject)
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/discover/:projectId/love', async (req, res, next) => {
+  try {
+    const updated = await updateProjectRecord(req.params.projectId, (record) => ({
+      ...record,
+      reactions: {
+        ...record.reactions,
+        loves: Number(record.reactions?.loves || 0) + 1
+      }
+    }));
+
+    if (!updated) {
+      res.status(404).json({ ok: false, error: 'Project not found.' });
+      return;
+    }
+
+    res.json({ ok: true, project: publicProject(updated) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/discover/:projectId/comments', async (req, res, next) => {
+  try {
+    const body = String(req.body?.body || '').trim();
+    const author = String(req.body?.author || '').trim().slice(0, 40) || 'Guest';
+
+    if (!body) {
+      res.status(400).json({ ok: false, error: 'Comment cannot be empty.' });
+      return;
+    }
+
+    const updated = await updateProjectRecord(req.params.projectId, (record) => ({
+      ...record,
+      comments: [
+        {
+          id: crypto.randomUUID(),
+          author,
+          body: body.slice(0, 500),
+          createdAt: new Date().toISOString()
+        },
+        ...(record.comments || [])
+      ].slice(0, 50)
+    }));
+
+    if (!updated) {
+      res.status(404).json({ ok: false, error: 'Project not found.' });
+      return;
+    }
+
+    res.json({ ok: true, project: publicProject(updated) });
   } catch (err) {
     next(err);
   }
@@ -651,9 +717,10 @@ app.post('/api/live/plan', upload.array('assets', 8), async (req, res, next) => 
       visibility: 'public',
       title: plan.title || 'Untitled Omnidesk Video',
       brief: req.body.brief || '',
+      lyrics: req.body.lyrics || '',
       targetFormat: req.body.targetFormat || plan.format || '9:16',
-      durationSeconds: Number(req.body.durationSeconds || plan.durationSeconds || 60),
-      sceneCount: Number(req.body.sceneCount || plan.scenes?.length || 10),
+      durationSeconds: Number(req.body.durationSeconds || plan.durationSeconds || 30),
+      sceneCount: Number(req.body.sceneCount || plan.scenes?.length || 2),
       createdAt: new Date().toISOString(),
       models: {
         planner: plannerModel,
@@ -670,7 +737,9 @@ app.post('/api/live/plan', upload.array('assets', 8), async (req, res, next) => 
       clips: [],
       finalVideo: null,
       audioPlan: null,
-      agentReview: null
+      agentReview: null,
+      reactions: { loves: 0 },
+      comments: []
     });
 
     res.json({
