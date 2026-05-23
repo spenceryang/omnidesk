@@ -20,7 +20,7 @@ import {
   startVideoJob
 } from '../services/liveApi';
 
-const defaultBrief = 'Original 30-second performance music video using my lyrics, prompt, or uploaded creator assets. Make it cinematic, rhythmic, and rights-safe. Use two strong visual chapters that feel like one continuous music video.';
+const defaultBrief = 'Original 30-second performance music video using my lyrics, prompt, or uploaded creator assets. Make it cinematic, rhythmic, and rights-safe. Use two generated 8-second hero clips as visual anchors under one continuous music track.';
 
 const fixedConstraints = 'Use only original, rights-safe aesthetics. Preserve uploaded creator movement conceptually. No copyrighted characters, named artist imitation, celebrity likeness, or franchise references. Keep one continuous music bed across the full video; do not create separate songs per scene.';
 const VIDEO_POLL_INTERVAL_MS = 30_000;
@@ -470,7 +470,7 @@ export default function LiveGeneration({ health }) {
               <div>
                 <span>Final render</span>
                 <strong>{completedClipCount}/{scenes.length} clips ready</strong>
-                <small>Generate all runs one Veo clip at a time. The default 2-scene render uses 2 daily Veo requests.</small>
+                <small>Generate all runs one Veo clip at a time. Veo clips are capped at 8 seconds, so the 30-second plan uses two generated hero clips.</small>
               </div>
               <button
                 className="btn-primary"

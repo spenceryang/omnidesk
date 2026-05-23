@@ -520,7 +520,8 @@ async function waitForGeminiFileActive(uploaded, originalName) {
 function productionPrompt({ brief, targetFormat, durationSeconds, sceneCount, constraints, lyrics }, uploadedFiles) {
   const targetDuration = Number(durationSeconds || 30);
   const targetSceneCount = Number(sceneCount || 2);
-  const sceneDuration = Math.max(4, Math.round(targetDuration / targetSceneCount));
+  const narrativeSceneDuration = Math.max(4, Math.round(targetDuration / targetSceneCount));
+  const generatedClipDuration = Math.min(8, Math.max(4, narrativeSceneDuration));
   const assetSummary = uploadedFiles.map((file, index) => (
     `${index + 1}. ${file.originalName} (${file.mimeType})`
   )).join('\n');
@@ -535,7 +536,8 @@ ${brief || 'Create an original, rights-safe music video from the uploaded creato
 Target format: ${targetFormat || '9:16'}
 Target total duration seconds: ${targetDuration}
 Target scene count: ${targetSceneCount}
-Target generated clip duration per scene: ${sceneDuration} seconds
+Narrative duration per scene: about ${narrativeSceneDuration} seconds
+Generated Veo clip duration per scene: ${generatedClipDuration} seconds
 Creator constraints:
 ${constraints || 'Original, rights-safe, no named franchise or artist imitation.'}
 
@@ -586,7 +588,7 @@ Return this JSON shape:
       "negativePrompt": string,
       "recommendedModel": "veo-3.1-generate-preview",
       "aspectRatio": "9:16|16:9",
-      "durationSeconds": 6
+      "durationSeconds": ${generatedClipDuration}
     }
   ]
 }
@@ -595,7 +597,8 @@ Rules:
 - Avoid named artists, celebrity likenesses, copyrighted characters, protected logos, and franchise lookalikes.
 - If the user asks for risky IP, rewrite it into original descriptive language.
 - Return exactly ${targetSceneCount} scenes for a ${targetDuration}-second music video.
-- Each scene should be roughly ${sceneDuration} seconds and should be directly generatable as a standalone Veo clip.
+- Each scene covers roughly ${narrativeSceneDuration} seconds of the music-video arc, but each Veo generation must use durationSeconds between 4 and 8 inclusive.
+- Set every scene.durationSeconds to ${generatedClipDuration}; do not output a value above 8.
 - Use scene IDs scene_01 through scene_${String(targetSceneCount).padStart(2, '0')}.
 - Keep one continuous music track across the full ${targetDuration} seconds. Do not create a separate song, vocal take, or beat per scene.
 - Treat scenes as visual chapters under one shared track. The first scene should establish hook/verse energy; the last scene should land the chorus/climax/outro.
@@ -774,11 +777,12 @@ app.post('/api/live/videos', async (req, res, next) => {
       return;
     }
 
-    const clipDurationSeconds = Number(durationSeconds || 8);
-    if (!Number.isFinite(clipDurationSeconds) || clipDurationSeconds <= 0) {
+    const requestedDurationSeconds = Number(durationSeconds || 8);
+    if (!Number.isFinite(requestedDurationSeconds) || requestedDurationSeconds <= 0) {
       res.status(400).json({ ok: false, error: 'durationSeconds must be a positive number.' });
       return;
     }
+    const clipDurationSeconds = Math.min(8, Math.max(4, requestedDurationSeconds));
 
     const operation = await ai.models.generateVideos({
       model: videoModel,
