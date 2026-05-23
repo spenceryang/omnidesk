@@ -2,7 +2,7 @@
 
 Omnidesk is a live music-video generation studio for creators.
 
-It takes a creative prompt, pasted lyrics, and optional creator-owned assets; produces a 16-second, two-scene music-video plan; runs a Gemini Managed Agent production desk; generates Veo clips; creates a continuous Lyria soundtrack; combines everything into a final MP4; and publishes watchable work to Discover.
+It takes a creative prompt, pasted lyrics, and optional creator-owned assets; produces a 16-second, two-scene music-video plan; lets a Gemini Managed Agent production desk review and optionally improve the plan; generates Veo clips; creates a separate continuous Lyria soundtrack; combines everything into a final MP4; and publishes watchable work to Discover.
 
 Live app: [https://omnidesk-seven.vercel.app](https://omnidesk-seven.vercel.app)
 
@@ -11,11 +11,11 @@ Live app: [https://omnidesk-seven.vercel.app](https://omnidesk-seven.vercel.app)
 - Creates a rights-safe music-video concept from a prompt, lyrics, and uploaded assets.
 - Defaults to two 8-second scenes for a 16-second music video.
 - Uses Gemini planning to produce scene descriptions, Veo prompts, safety notes, and music structure.
-- Runs a 4-role Gemini Managed Agent production desk across IP safety, Veo prompt quality, creative direction, and music continuity.
+- Runs a manual 4-role Gemini Managed Agent production desk across IP safety, video prompt quality, creative direction, and music continuity.
 - Lets users optionally apply managed-agent recommendations back into the plan, or ignore them and continue unchanged.
 - Locks generation until the managed-agent desk completes with no blockers.
 - Generates individual scene clips with Veo when the API is configured.
-- Generates one continuous Lyria 3 music track and muxes it over the final video.
+- Generates one continuous Lyria 3 music track in a separate audio lane and muxes it over the final video.
 - Combines generated clips into a final MP4 with ffmpeg.
 - Stores public project records and generated MP4s in Vercel Blob on production.
 - Shows watchable community generations in the Discover tab, with love and comment interactions.
@@ -28,9 +28,10 @@ The app is intentionally focused on one live workflow:
 2. Choose format, duration, and scene count.
 3. Upload optional audio, video, image, or reference assets.
 4. Create a music-video plan.
-5. Let the Gemini Managed Agent production desk review the brief, lyrics, assets, IP safety, music continuity, Veo prompts, and edit readiness.
-6. Generate selected scene clips, generate a Lyria soundtrack, or generate all and combine.
-7. View watchable public generations in Discover.
+5. Manually run the Gemini Managed Agent production desk when the plan is ready for review.
+6. Optionally apply the agents' recommendations back into the plan, or ignore them.
+7. Generate selected scene clips, generate a separate Lyria soundtrack, or generate all and combine.
+8. View watchable public generations in Discover.
 
 Old mock storyboard screens and local demo data have been removed.
 
@@ -38,7 +39,7 @@ Old mock storyboard screens and local demo data have been removed.
 
 - Gemini 3 Flash preview for planning, scene writing, prompt generation, and audio-control JSON.
 - Gemini Files API for uploaded asset context.
-- Gemini Managed Agents / Interactions API for the specialist production desk.
+- Gemini Managed Agents / Interactions API for the specialist production desk and plan-review workflow.
 - Veo 3 Fast Generate for generated video clips by default.
 - Lyria 3 Clip preview for a continuous generated soundtrack.
 
@@ -94,7 +95,13 @@ Only `GEMINI_API_KEY` is required for planning and generation. `BLOB_READ_WRITE_
 
 ## Vercel Deployment
 
-The frontend is deployed on Vercel. The API is wired through `api/[...path].js` and `server/app.js`.
+The frontend is deployed on Vercel. The API is wired through a small set of serverless entry points that all reuse `server/app.js`:
+
+- `api/[...path].js` for top-level API routes such as health and Discover list.
+- `api/live/[...path].js` for live generation, planning, agent, Lyria, video, and compile routes.
+- `api/discover/[projectId]/love.js` and `api/discover/[projectId]/comments.js` for community interactions.
+
+Video jobs start through `POST /api/live/videos` and are polled through `GET /api/live/video-job?jobId=...`. The query-string polling route avoids Vercel dynamic-route 404s for nested job IDs.
 
 For live generation on Vercel, set `GEMINI_API_KEY` in the Vercel project environment and redeploy production. Without that environment variable, the deployed UI will load but show `API offline`, and generation buttons will stay disabled.
 
@@ -116,8 +123,9 @@ npm run lint
 - `src/services/liveApi.js` - client-side API helpers.
 - `server/app.js` - Express API used locally and by Vercel serverless.
 - `server/index.js` - local API server entry point.
-- `api/[...path].js` - Vercel serverless entry point.
-- `api/discover.js` - Vercel shortcut entry point for public generated projects.
+- `api/[...path].js` - top-level Vercel API entry point.
+- `api/live/[...path].js` - Vercel live-generation API entry point.
+- `api/discover/[projectId]/love.js` and `api/discover/[projectId]/comments.js` - Vercel Discover interaction routes.
 - `docs/` - product, technical, build, safety, and live setup notes.
 - `docs/todos.md` - current implementation gaps and next steps.
 
