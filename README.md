@@ -35,6 +35,18 @@ The app is intentionally focused on one live workflow:
 
 Old mock storyboard screens and local demo data have been removed.
 
+## Default Creative Prompt
+
+```text
+Create an original 16-second vertical music video for a creator drop. Use my lyrics, prompt, and creator-owned assets as the source of identity. Build a distinctive visual world with a memorable opening hook, performance-driven movement, bold but rights-safe styling, and two connected 8-second scenes that feel like chapters of the same track. Generate one continuous Lyria music bed across both scenes, not separate songs per scene. Avoid celebrity likenesses, copyrighted characters, franchise references, protected logos, and named-artist imitation.
+```
+
+## Hackathon Description
+
+Omnidesk is an AI production desk for creator music videos. A creator provides a prompt, lyrics, and optional creator-owned assets, and Omnidesk turns them into a rights-safe music-video plan with two connected Veo scenes and one continuous Lyria soundtrack. Gemini 3 Flash creates the scene plan, Veo prompts, safety notes, and music structure. A four-agent Gemini Managed Agent desk then reviews the plan from the perspectives of IP safety, video prompt quality, creative direction, and music continuity. The creator can optionally apply those agent recommendations back into the plan, ignore them, or continue straight to generation. Omnidesk generates Veo clips, produces a separate Lyria music bed, combines the final MP4, stores outputs in Vercel Blob, and publishes watchable results to a community Discover feed.
+
+The core idea is to move beyond a basic prompt-to-video demo into an agentic creative workflow: agents are not just chatbots, they act like a production desk that catches risks, improves prompts, strengthens originality, and helps creators ship more polished, rights-safe music videos.
+
 ## Google Products Used
 
 - Gemini 3 Flash preview for planning, scene writing, prompt generation, and audio-control JSON.
