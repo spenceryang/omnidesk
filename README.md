@@ -13,7 +13,7 @@ Live app: [https://omnidesk-seven.vercel.app](https://omnidesk-seven.vercel.app)
 - Uses Gemini planning to produce scene descriptions, Veo prompts, safety notes, and music structure.
 - Runs a manual 4-role Gemini Managed Agent production desk across IP safety, video prompt quality, creative direction, and music continuity.
 - Lets users optionally apply managed-agent recommendations back into the plan, or ignore them and continue unchanged.
-- Locks generation until the managed-agent desk completes with no blockers.
+- Keeps generation available even if the managed-agent desk is skipped or finds issues.
 - Generates individual scene clips with Veo when the API is configured.
 - Generates one continuous Lyria 3 music track in a separate audio lane and muxes it over the final video.
 - Combines generated clips into a final MP4 with ffmpeg.

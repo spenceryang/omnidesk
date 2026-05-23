@@ -107,9 +107,22 @@ function extractInteractionText(interaction) {
 }
 
 function normalizeError(err) {
+  const nestedError = err.error || err.cause?.error;
+  if (nestedError) {
+    return {
+      status: nestedError.code || nestedError.statusCode || err.status || err.statusCode || 500,
+      message: typeof nestedError.message === 'string'
+        ? nestedError.message
+        : JSON.stringify(nestedError.message || nestedError),
+      code: nestedError.status || nestedError.code || err.code || null
+    };
+  }
+
   const fallback = {
     status: err.status || err.statusCode || 500,
-    message: err.message || 'Unexpected server error.',
+    message: typeof err.message === 'string'
+      ? err.message
+      : JSON.stringify(err.message || 'Unexpected server error.'),
     code: err.code || null
   };
 

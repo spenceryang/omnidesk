@@ -1,9 +1,19 @@
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
+function errorMessageFromPayload(payload, response) {
+  const error = payload?.error || payload?.message;
+  if (typeof error === 'string') return error;
+  if (error?.message && typeof error.message === 'string') return error.message;
+  if (error?.status && typeof error.status === 'string') return error.status;
+  if (payload?.code && typeof payload.code === 'string') return payload.code;
+  if (error) return JSON.stringify(error);
+  return `Request failed with ${response.status}`;
+}
+
 async function parseResponse(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    const message = payload.error || `Request failed with ${response.status}`;
+    const message = errorMessageFromPayload(payload, response);
     if (payload.code === 'RESOURCE_EXHAUSTED' || /quota|rate.?limit|resource has been exhausted/i.test(message)) {
       throw new Error('Google quota was hit for this project/model. Wait for the rate-limit window to reset, check AI Studio usage, or generate fewer clips at a time.');
     }

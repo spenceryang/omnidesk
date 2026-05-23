@@ -41,7 +41,7 @@ function agentDeskPassed(result) {
   return Boolean(result?.aggregate && Number(result.aggregate.blocked || 0) === 0);
 }
 
-function SceneGenerationCard({ scene, onStart, job, fallbackDuration, agentReady }) {
+function SceneGenerationCard({ scene, onStart, job, fallbackDuration }) {
   const isRunning = job?.status === 'running';
   const isDone = job?.status === 'completed';
 
@@ -70,9 +70,8 @@ function SceneGenerationCard({ scene, onStart, job, fallbackDuration, agentReady
 
       <button
         className={isDone ? 'btn-secondary' : 'btn-primary'}
-        disabled={isRunning || !agentReady}
+        disabled={isRunning}
         onClick={() => onStart(scene)}
-        title={!agentReady ? 'Run Managed Agent Production Desk before generating clips.' : undefined}
       >
         {isRunning ? <Loader2 size={16} className="spin-icon" /> : isDone ? <Download size={16} /> : <Film size={16} />}
         <span>{isRunning ? 'Generating...' : isDone ? 'Regenerate' : 'Generate clip'}</span>
@@ -373,11 +372,6 @@ export default function LiveGeneration({ health }) {
   };
 
   const startSceneGeneration = async (scene) => {
-    if (!agentReady) {
-      setError('Run Managed Agent Production Desk before generating clips.');
-      return null;
-    }
-
     setError('');
     setJobs((prev) => ({
       ...prev,
@@ -418,10 +412,6 @@ export default function LiveGeneration({ health }) {
 
   const generateMusicTrack = useCallback(async () => {
     if (!plan) return null;
-    if (!agentReady) {
-      setError('Run Managed Agent Production Desk before generating a Lyria track.');
-      return null;
-    }
     setError('');
     setIsGeneratingMusicTrack(true);
 
@@ -441,7 +431,7 @@ export default function LiveGeneration({ health }) {
     } finally {
       setIsGeneratingMusicTrack(false);
     }
-  }, [agentReady, brief, durationSeconds, lyrics, plan, projectId]);
+  }, [brief, durationSeconds, lyrics, plan, projectId]);
 
   const handleCompileVideo = useCallback(async () => {
     if (!plan || !allClipsComplete) return;
@@ -473,11 +463,6 @@ export default function LiveGeneration({ health }) {
 
   const handleGenerateAllAndCompile = async () => {
     if (!plan || scenes.length === 0) return;
-    if (!agentReady) {
-      setError('Run Managed Agent Production Desk before generating clips.');
-      return;
-    }
-
     setError('');
     setFinalVideo(null);
     setAutoCompile(true);
@@ -676,12 +661,12 @@ export default function LiveGeneration({ health }) {
             </div>
 
             <div className="action-row">
-              <button className="btn-secondary" onClick={handleLyriaPlan} disabled={isMakingLyriaPlan || !agentReady}>
+              <button className="btn-secondary" onClick={handleLyriaPlan} disabled={isMakingLyriaPlan}>
                 {isMakingLyriaPlan ? <Loader2 size={16} className="spin-icon" /> : <Music size={16} />}
                 <span>Plan music cues</span>
               </button>
 
-              <button className="btn-secondary" onClick={generateMusicTrack} disabled={isGeneratingMusicTrack || !agentReady}>
+              <button className="btn-secondary" onClick={generateMusicTrack} disabled={isGeneratingMusicTrack}>
                 {isGeneratingMusicTrack ? <Loader2 size={16} className="spin-icon" /> : <Music size={16} />}
                 <span>{musicTrack ? 'Regenerate Lyria track' : 'Generate Lyria track'}</span>
               </button>
@@ -708,10 +693,10 @@ export default function LiveGeneration({ health }) {
                 <b>
                   {isRunningSwarm
                     ? `${swarmResult?.count || 0}/${agentReviewRoles.length || managedAgents.length || 4}`
-                    : agentReady ? 'Approved' : agentBlocked ? 'Blocked' : 'Required'}
+                    : agentReady ? 'Reviewed' : agentBlocked ? 'Needs attention' : 'Optional'}
                 </b>
               </div>
-              <p>Omnidesk uses Gemini Managed Agents as a production desk. A swarm of specialist agents reviews the creator brief, lyrics, assets, IP safety, music continuity, Veo prompts, and final edit readiness before generation.</p>
+              <p>Omnidesk uses Gemini Managed Agents as an optional production desk. Specialist agents review the creator brief, lyrics, assets, IP safety, music continuity, Veo prompts, and edit readiness, then can suggest improvements without blocking generation.</p>
               {isRunningSwarm && <AgentWorkerAnimation roles={managedAgents} />}
               {(isRunningSwarm || swarmResult) && agentReviewRoles.length > 0 && (
                 <AgentProgressList
@@ -728,7 +713,7 @@ export default function LiveGeneration({ health }) {
                 </div>
               )}
               {!agentReady && !isRunningSwarm && (
-                <small>{swarmResult ? 'Generation is locked until the managed-agent desk has no blockers.' : 'Run this desk manually when the scene plan is ready for review.'}</small>
+                <small>{swarmResult ? 'Review found issues, but generation remains available. Apply improvements or continue with the current plan.' : 'Run this desk manually when you want agent review. Generation remains available without it.'}</small>
               )}
             </section>
 
@@ -782,12 +767,12 @@ export default function LiveGeneration({ health }) {
               <div>
                 <span>Final render</span>
                 <strong>{completedClipCount}/{scenes.length} clips ready</strong>
-                <small>{agentReady ? 'Generate all runs one Veo clip at a time. The default 16-second render uses two 8-second Veo clips.' : 'Locked until Gemini Managed Agents finish the production desk review.'}</small>
+                <small>Generate all runs one Veo clip at a time. The default 16-second render uses two 8-second Veo clips. Managed-agent review is optional.</small>
               </div>
               <button
                 className="btn-primary"
                 onClick={handleGenerateAllAndCompile}
-                disabled={isGeneratingAll || isCompiling || scenes.length === 0 || !agentReady}
+                disabled={isGeneratingAll || isCompiling || scenes.length === 0}
               >
                 {isGeneratingAll || (autoCompile && !allClipsComplete) ? <Loader2 size={16} className="spin-icon" /> : <Film size={16} />}
                 <span>{isGeneratingAll || (autoCompile && !allClipsComplete) ? 'Generating clips...' : 'Generate all & combine'}</span>
@@ -795,7 +780,7 @@ export default function LiveGeneration({ health }) {
               <button
                 className="btn-secondary"
                 onClick={handleCompileVideo}
-                disabled={!allClipsComplete || isCompiling || !agentReady}
+                disabled={!allClipsComplete || isCompiling}
               >
                 {isCompiling ? <Loader2 size={16} className="spin-icon" /> : <Download size={16} />}
                 <span>{isCompiling ? 'Combining...' : 'Combine ready clips'}</span>
@@ -860,7 +845,6 @@ export default function LiveGeneration({ health }) {
                 scene={scene}
                 job={jobs[scene.id]}
                 fallbackDuration={fallbackDuration}
-                agentReady={agentReady}
                 onStart={handleGenerateScene}
               />
             ))}
