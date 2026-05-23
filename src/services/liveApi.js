@@ -3,7 +3,11 @@ const jsonHeaders = { 'Content-Type': 'application/json' };
 async function parseResponse(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new Error(payload.error || `Request failed with ${response.status}`);
+    const message = payload.error || `Request failed with ${response.status}`;
+    if (payload.code === 'RESOURCE_EXHAUSTED' || /quota|rate.?limit|resource has been exhausted/i.test(message)) {
+      throw new Error('Google quota was hit for this project/model. Wait for the rate-limit window to reset, check AI Studio usage, or generate fewer clips at a time.');
+    }
+    throw new Error(message);
   }
   return payload;
 }

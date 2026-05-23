@@ -23,6 +23,17 @@ import {
 const defaultBrief = 'Original one-minute performance music video using my uploaded creator assets. Make it cinematic, rhythmic, and rights-safe. Use 10 coherent scenes with a strong hook, verse, chorus, bridge, final chorus, and outro.';
 
 const fixedConstraints = 'Use only original, rights-safe aesthetics. Preserve uploaded creator movement conceptually. No copyrighted characters, named artist imitation, celebrity likeness, or franchise references.';
+const VIDEO_POLL_INTERVAL_MS = 30_000;
+const MIN_VIDEO_START_INTERVAL_MS = 70_000;
+const MAX_VIDEO_POLLS = 60;
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isQuotaError(message = '') {
+  return /quota|rate.?limit|resource has been exhausted/i.test(message);
+}
 
 function SceneGenerationCard({ scene, onStart, job, fallbackDuration }) {
   const isRunning = job?.status === 'running';
@@ -144,10 +155,32 @@ export default function LiveGeneration({ health }) {
           });
         }
       }
-    }, 8000);
+    }, VIDEO_POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [jobs]);
+
+  const pollVideoJobUntilComplete = async ({ jobId, sceneId }) => {
+    for (let attempt = 0; attempt < MAX_VIDEO_POLLS; attempt += 1) {
+      await wait(VIDEO_POLL_INTERVAL_MS);
+      const updated = await getVideoJob(jobId);
+      setJobs((prev) => ({
+        ...prev,
+        [updated.sceneId || sceneId]: {
+          ...prev[updated.sceneId || sceneId],
+          ...updated,
+          jobId
+        }
+      }));
+
+      if (updated.status === 'completed') return updated;
+      if (updated.status === 'failed') {
+        throw new Error(updated.error || 'Video generation failed.');
+      }
+    }
+
+    throw new Error('Video generation is still running. Wait a bit, then refresh the clip status.');
+  };
 
   const handleAssets = (event) => {
     setAssets(Array.from(event.target.files || []));
@@ -254,15 +287,31 @@ export default function LiveGeneration({ health }) {
     setFinalVideo(null);
     setAutoCompile(true);
     setIsGeneratingAll(true);
+    let lastStartAt = 0;
 
     try {
       for (const scene of scenes) {
         const job = jobs[scene.id];
-        if (job?.status === 'completed' || job?.status === 'running') continue;
-        await startSceneGeneration(scene);
+        if (job?.status === 'completed') continue;
+
+        if (job?.status === 'running' && (job.jobId || job.id)) {
+          await pollVideoJobUntilComplete({ jobId: job.jobId || job.id, sceneId: scene.id });
+          continue;
+        }
+
+        const elapsedSinceLastStart = Date.now() - lastStartAt;
+        if (lastStartAt && elapsedSinceLastStart < MIN_VIDEO_START_INTERVAL_MS) {
+          await wait(MIN_VIDEO_START_INTERVAL_MS - elapsedSinceLastStart);
+        }
+
+        const started = await startSceneGeneration(scene);
+        lastStartAt = Date.now();
+        await pollVideoJobUntilComplete({ jobId: started.jobId || started.id, sceneId: scene.id });
       }
     } catch (err) {
-      setError(err.message);
+      setError(isQuotaError(err.message)
+        ? 'Google quota was hit. Wait for the model quota window to reset, or check the project limits in AI Studio. Generated clips already saved in Discover will stay available.'
+        : err.message);
       setAutoCompile(false);
     } finally {
       setIsGeneratingAll(false);
@@ -408,6 +457,7 @@ export default function LiveGeneration({ health }) {
               <div>
                 <span>Final render</span>
                 <strong>{completedClipCount}/{scenes.length} clips ready</strong>
+                <small>Generate all runs one Veo clip at a time. A 10-scene render uses 10 daily Veo requests.</small>
               </div>
               <button
                 className="btn-primary"
