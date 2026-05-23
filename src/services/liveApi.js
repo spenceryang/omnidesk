@@ -68,3 +68,17 @@ export async function runManagedAgentReview({ brief, plan }) {
   });
   return parseResponse(response);
 }
+
+export async function getManagedAgents() {
+  const response = await fetch('/api/live/managed-agents');
+  return parseResponse(response);
+}
+
+export async function runManagedAgentSwarm({ brief, plan, selectedAgentIds }) {
+  const response = await fetch('/api/live/managed-agent-swarm', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ brief, plan, selectedAgentIds })
+  });
+  return parseResponse(response);
+}

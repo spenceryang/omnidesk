@@ -14,8 +14,10 @@ import {
 import {
   createLivePlan,
   createLyriaPlan,
+  getManagedAgents,
   getVideoJob,
   runManagedAgentReview,
+  runManagedAgentSwarm,
   startVideoJob
 } from '../services/liveApi';
 
@@ -67,14 +69,23 @@ export default function LiveGeneration({ health }) {
   const [planResponse, setPlanResponse] = useState(null);
   const [lyriaPlan, setLyriaPlan] = useState(null);
   const [agentReview, setAgentReview] = useState(null);
+  const [managedAgents, setManagedAgents] = useState([]);
+  const [swarmResult, setSwarmResult] = useState(null);
   const [jobs, setJobs] = useState({});
   const [isPlanning, setIsPlanning] = useState(false);
   const [isMakingLyriaPlan, setIsMakingLyriaPlan] = useState(false);
   const [isReviewingWithAgent, setIsReviewingWithAgent] = useState(false);
+  const [isRunningSwarm, setIsRunningSwarm] = useState(false);
   const [error, setError] = useState('');
 
   const plan = planResponse?.plan;
   const scenes = useMemo(() => plan?.scenes || [], [plan]);
+
+  useEffect(() => {
+    getManagedAgents()
+      .then((response) => setManagedAgents(response.roles || []))
+      .catch(() => setManagedAgents([]));
+  }, []);
 
   useEffect(() => {
     const runningIds = Object.values(jobs)
@@ -122,6 +133,7 @@ export default function LiveGeneration({ health }) {
     setPlanResponse(null);
     setLyriaPlan(null);
     setAgentReview(null);
+    setSwarmResult(null);
     setJobs({});
     setIsPlanning(true);
     try {
@@ -192,6 +204,21 @@ export default function LiveGeneration({ health }) {
       setError(err.message);
     } finally {
       setIsReviewingWithAgent(false);
+    }
+  };
+
+  const handleManagedAgentSwarm = async () => {
+    if (!plan) return;
+    setIsRunningSwarm(true);
+    setError('');
+    setSwarmResult(null);
+    try {
+      const response = await runManagedAgentSwarm({ brief, plan });
+      setSwarmResult(response);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsRunningSwarm(false);
     }
   };
 
@@ -316,6 +343,11 @@ export default function LiveGeneration({ health }) {
               <span>{isReviewingWithAgent ? 'Running Managed Agent...' : 'Run Managed Agent Review'}</span>
             </button>
 
+            <button className="btn-primary" onClick={handleManagedAgentSwarm} disabled={isRunningSwarm}>
+              {isRunningSwarm ? <Loader2 size={16} className="spin-icon" /> : <Sparkles size={16} />}
+              <span>{isRunningSwarm ? `Running ${managedAgents.length || 12} Agents...` : `Run ${managedAgents.length || 12}-Agent Swarm`}</span>
+            </button>
+
             {lyriaPlan && (
               <div className="prompt-box">
                 {JSON.stringify(lyriaPlan, null, 2)}
@@ -325,6 +357,40 @@ export default function LiveGeneration({ health }) {
             {agentReview && (
               <div className="prompt-box">
                 {agentReview.outputText}
+              </div>
+            )}
+
+            {swarmResult && (
+              <div className="agent-swarm-panel">
+                <div className="live-section-header">
+                  <div>
+                    <h3>Managed Agent Swarm</h3>
+                    <p>
+                      {swarmResult.count} managed-agent interactions completed with {swarmResult.agent}.
+                    </p>
+                  </div>
+                  <span className="badge badge-cyan">Avg {swarmResult.aggregate?.averageScore}</span>
+                </div>
+                <div className="swarm-metrics">
+                  <div><strong>{swarmResult.aggregate?.pass}</strong><span>Pass</span></div>
+                  <div><strong>{swarmResult.aggregate?.warn}</strong><span>Warn</span></div>
+                  <div><strong>{swarmResult.aggregate?.blocked}</strong><span>Blocked</span></div>
+                </div>
+                <div className="swarm-agent-list">
+                  {swarmResult.results?.map((item) => (
+                    <details key={item.role.id} className="swarm-agent-card">
+                      <summary>
+                        <span>{item.result.agentName || item.role.name}</span>
+                        <span className={`badge ${item.result.status === 'pass' ? 'badge-green' : item.result.status === 'blocked' ? 'badge-rose' : 'badge-amber'}`}>
+                          {item.result.status} · {item.result.score}
+                        </span>
+                      </summary>
+                      <div className="prompt-box">
+                        {JSON.stringify(item.result, null, 2)}
+                      </div>
+                    </details>
+                  ))}
+                </div>
               </div>
             )}
           </section>

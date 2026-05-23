@@ -27,10 +27,74 @@ const upload = multer({ dest: uploadDir, limits: { fileSize: 80 * 1024 * 1024 } 
 
 const plannerModel = process.env.GEMINI_PLANNER_MODEL || 'gemini-3-flash-preview';
 const videoModel = process.env.GEMINI_VIDEO_MODEL || 'veo-3.1-generate-preview';
+const managedAgent = process.env.GEMINI_MANAGED_AGENT || 'antigravity-preview-05-2026';
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const videoJobs = new Map();
+
+const MANAGED_AGENT_ROLES = [
+  {
+    id: 'music-analyst',
+    name: 'Music Analyst Agent',
+    mission: 'Analyze the music-video timing, section map, energy curve, beat-sync opportunities, and audio risks.'
+  },
+  {
+    id: 'creator-dna',
+    name: 'Creator DNA Agent',
+    mission: 'Inspect how well uploaded assets, choreography, wardrobe, references, motifs, and personal style are reflected in the plan.'
+  },
+  {
+    id: 'creative-director',
+    name: 'Creative Director Agent',
+    mission: 'Strengthen the concept, visual language, story arc, emotional progression, and originality of the one-minute video.'
+  },
+  {
+    id: 'scene-planner',
+    name: 'Scene Planner Agent',
+    mission: 'Verify the 10-scene structure, pacing, transitions, scene contrast, and complete 60-second coverage.'
+  },
+  {
+    id: 'continuity-supervisor',
+    name: 'Continuity Supervisor Agent',
+    mission: 'Check cross-scene consistency for subject, wardrobe, movement, color palette, props, locations, and motifs.'
+  },
+  {
+    id: 'ip-safety',
+    name: 'IP Safety Agent',
+    mission: 'Identify copyright, trademark, celebrity likeness, artist-style imitation, music-rights, and platform-safety risks.'
+  },
+  {
+    id: 'prompt-engineer',
+    name: 'Veo Prompt Engineer Agent',
+    mission: 'Improve every Veo prompt for clear subject, action, camera, lighting, style, duration, and negative constraints.'
+  },
+  {
+    id: 'generation-router',
+    name: 'Generation Router Agent',
+    mission: 'Decide which scenes should be generated first, which need still/keyframe fallback, and what settings reduce latency risk.'
+  },
+  {
+    id: 'audio-producer',
+    name: 'Lyria Audio Producer Agent',
+    mission: 'Create a safe music-control strategy for intros, drops, transitions, stingers, and section-level musical variations.'
+  },
+  {
+    id: 'editor',
+    name: 'Editor Agent',
+    mission: 'Plan assembly, beat cuts, match cuts, captions, transitions, preview order, and final export structure.'
+  },
+  {
+    id: 'remix',
+    name: 'Remix Agent',
+    mission: 'Define remixable controls, lock rules, branch strategy, and examples for changing style while preserving continuity.'
+  },
+  {
+    id: 'qa-showrunner',
+    name: 'Demo QA Showrunner Agent',
+    mission: 'Find demo failure modes and produce a reliable 3-minute judging flow with fallback assets and talking points.'
+  }
+];
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
@@ -51,6 +115,76 @@ function cleanJson(text) {
     .replace(/^```\s*/i, '')
     .replace(/```$/i, '')
     .trim();
+}
+
+function extractInteractionText(interaction) {
+  if (interaction.output_text) return interaction.output_text;
+  if (interaction.outputText) return interaction.outputText;
+  if (typeof interaction.outputs === 'string') return interaction.outputs;
+  if (Array.isArray(interaction.outputs)) {
+    return interaction.outputs.map((output) => {
+      if (typeof output === 'string') return output;
+      if (output.text) return output.text;
+      if (output.content) return typeof output.content === 'string' ? output.content : JSON.stringify(output.content);
+      return JSON.stringify(output);
+    }).join('\n');
+  }
+  return JSON.stringify(interaction.outputs || interaction, null, 2);
+}
+
+async function runManagedRole({ role, brief, plan }) {
+  const input = `You are the ${role.name} for Omnidesk, a live music-video generation product.
+
+Mission:
+${role.mission}
+
+Review this production plan and return concise JSON only:
+{
+  "agentId": "${role.id}",
+  "agentName": "${role.name}",
+  "status": "pass|warn|blocked",
+  "score": number,
+  "findings": string[],
+  "requiredChanges": string[],
+  "sceneNotes": [{"sceneId": string, "note": string}],
+  "nextAction": string
+}
+
+Creator brief:
+${brief || ''}
+
+Production plan:
+${JSON.stringify(plan || {}, null, 2)}`;
+
+  const interaction = await ai.interactions.create({
+    agent: managedAgent,
+    input
+  });
+
+  const text = extractInteractionText(interaction);
+  let parsed;
+  try {
+    parsed = JSON.parse(cleanJson(text));
+  } catch {
+    parsed = {
+      agentId: role.id,
+      agentName: role.name,
+      status: 'warn',
+      score: 0,
+      findings: [text],
+      requiredChanges: ['Review unstructured managed-agent output manually.'],
+      sceneNotes: [],
+      nextAction: 'Parse failed; inspect raw output.'
+    };
+  }
+
+  return {
+    role,
+    interactionId: interaction.id,
+    status: interaction.status || 'completed',
+    outputText: text,
+    result: parsed
+  };
 }
 
 function pickMime(file) {
@@ -161,6 +295,8 @@ app.get('/api/health', (_req, res) => {
     configured: Boolean(ai),
     plannerModel,
     videoModel,
+    managedAgent,
+    managedAgentCount: MANAGED_AGENT_ROLES.length,
     storage: 'local filesystem',
     note: ai
       ? 'Gemini API key is configured.'
@@ -356,7 +492,7 @@ app.post('/api/live/managed-agent-review', async (req, res, next) => {
     }
 
     const interaction = await ai.interactions.create({
-      agent: 'antigravity-preview-05-2026',
+      agent: managedAgent,
       environment: 'remote',
       input: `You are the Omnidesk managed agent quality reviewer.
 
@@ -383,11 +519,59 @@ ${JSON.stringify(plan || {}, null, 2)}`
 
     res.json({
       ok: true,
-      agent: 'antigravity-preview-05-2026',
+      agent: managedAgent,
       interactionId: interaction.id,
       environmentId: interaction.environment_id,
-      outputText: interaction.output_text,
+      outputText: extractInteractionText(interaction),
       steps: interaction.steps || []
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/live/managed-agents', (_req, res) => {
+  res.json({
+    ok: true,
+    agent: managedAgent,
+    roles: MANAGED_AGENT_ROLES
+  });
+});
+
+app.post('/api/live/managed-agent-swarm', async (req, res, next) => {
+  try {
+    assertConfigured();
+    if (!ai.interactions?.create) {
+      res.status(501).json({
+        ok: false,
+        error: 'This @google/genai build does not expose interactions.create. Update @google/genai or use the REST Interactions API.'
+      });
+      return;
+    }
+
+    const { brief, plan, selectedAgentIds } = req.body;
+    const selected = Array.isArray(selectedAgentIds) && selectedAgentIds.length
+      ? MANAGED_AGENT_ROLES.filter((role) => selectedAgentIds.includes(role.id))
+      : MANAGED_AGENT_ROLES;
+
+    const results = [];
+    for (const role of selected) {
+      results.push(await runManagedRole({ role, brief, plan }));
+    }
+
+    const aggregate = {
+      pass: results.filter((item) => item.result.status === 'pass').length,
+      warn: results.filter((item) => item.result.status === 'warn').length,
+      blocked: results.filter((item) => item.result.status === 'blocked').length,
+      averageScore: Math.round(results.reduce((sum, item) => sum + Number(item.result.score || 0), 0) / Math.max(results.length, 1))
+    };
+
+    res.json({
+      ok: true,
+      agent: managedAgent,
+      count: results.length,
+      aggregate,
+      results
     });
   } catch (err) {
     next(err);

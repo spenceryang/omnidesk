@@ -8,13 +8,13 @@ Omnidesk now has a live local backend for testing real Gemini API calls.
 - Uploaded audio, video, image, lyric, and reference files are sent to the Gemini Files API for planning context.
 - Veo 3.1 video generation jobs can be started per scene.
 - Generated videos are downloaded to `server/generated/` and served back to the UI.
-- Managed Agents / Interactions API review can run against a completed plan with `antigravity-preview-05-2026`.
+- Managed Agents / Interactions API can run a 12-agent production swarm against a completed plan with `antigravity-preview-05-2026` by default.
 - Lyria support currently generates a rights-safe Lyria control plan. The realtime WebSocket music stream is not yet connected.
 
 ## What Is Not Yet Live
 
 - Gemini Omni is not exposed as a public Gemini API endpoint in the official docs checked on May 23, 2026. The working video API path is Veo 3.1.
-- Managed Agents API is wired as a review pass, not the default planner path. The default planner uses Gemini 3 Flash structured output because it can directly consume uploaded Files API assets.
+- Managed Agents API is wired as review and production-QA swarm passes, not the default planner path. The default planner uses Gemini 3 Flash structured output because it can directly consume uploaded Files API assets.
 - Google Cloud Storage and Firestore are not wired yet; local disk is used for fastest testing.
 
 ## Run Locally
@@ -29,6 +29,7 @@ Edit `.env`:
 
 ```bash
 GEMINI_API_KEY=your_ai_studio_key_here
+GEMINI_MANAGED_AGENT=antigravity-preview-05-2026
 ```
 
 Start the backend:
@@ -65,3 +66,22 @@ For a one-minute music video, Omnidesk asks Gemini to return exactly 10 scenes:
 | 08 | 0:42-0:48 | Final chorus escalation |
 | 09 | 0:48-0:54 | Climax / strongest visual |
 | 10 | 0:54-1:00 | Outro / resolution |
+
+## Managed Agent Swarm
+
+After Gemini creates the 10-scene plan, run **Run 12-Agent Swarm** to launch specialist managed-agent interactions:
+
+1. Music Analyst Agent
+2. Creator DNA Agent
+3. Creative Director Agent
+4. Scene Planner Agent
+5. Continuity Supervisor Agent
+6. IP Safety Agent
+7. Veo Prompt Engineer Agent
+8. Generation Router Agent
+9. Lyria Audio Producer Agent
+10. Editor Agent
+11. Remix Agent
+12. Demo QA Showrunner Agent
+
+Each agent returns a structured status, score, findings, required changes, scene notes, and next action.

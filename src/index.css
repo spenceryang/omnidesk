@@ -1001,6 +1001,82 @@ body {
   animation: spin 1s linear infinite;
 }
 
+.agent-swarm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 16px;
+}
+
+.swarm-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.swarm-metrics div {
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.swarm-metrics strong,
+.swarm-metrics span {
+  display: block;
+}
+
+.swarm-metrics strong {
+  color: var(--text-main);
+  font-size: 1.4rem;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.swarm-metrics span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+}
+
+.swarm-agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.swarm-agent-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.swarm-agent-card summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 10px 12px;
+  color: var(--text-main);
+  font-weight: 800;
+  font-size: 0.84rem;
+  list-style: none;
+}
+
+.swarm-agent-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.swarm-agent-card .prompt-box {
+  margin: 0 10px 10px;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
