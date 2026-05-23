@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
-  FolderPlus, Music, ShieldCheck, FileText, Activity, 
-  GitBranch, Award, CheckCircle, ChevronRight, Play, Layout, Plus, RotateCcw 
+  Music, Activity, CheckCircle, ChevronRight, Plus,
+  Database, Cpu, Film, Server, AlertTriangle, Sparkles
 } from 'lucide-react';
 
 import { INITIAL_PROJECTS } from './mockData';
@@ -11,17 +11,36 @@ import AgentDesk from './components/AgentDesk';
 import Timeline from './components/Timeline';
 import RemixPanel from './components/RemixPanel';
 import ExportPanel from './components/ExportPanel';
+import LiveGeneration from './components/LiveGeneration';
+import { getHealth } from './services/liveApi';
 
 export default function App() {
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
   const [activeProjectId, setActiveProjectId] = useState(INITIAL_PROJECTS[0].id);
-  const [step, setStep] = useState('timeline_review'); // 'setup' | 'brief' | 'agent_desk' | 'timeline_review'
+  const [step, setStep] = useState('live_generation'); // 'live_generation' | 'setup' | 'brief' | 'agent_desk' | 'timeline_review'
+  const [health, setHealth] = useState(null);
   
   // Quick banner alerts
   const [alertMsg, setAlertMsg] = useState('');
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeBranch = activeProject ? activeProject.branches[activeProject.currentBranchId] : null;
+
+  useEffect(() => {
+    getHealth()
+      .then(setHealth)
+      .catch(() => setHealth({ ok: false, configured: false, note: 'Local API server is not running.' }));
+  }, []);
+
+  const liveConfigured = Boolean(health?.configured);
+  const integrationStatus = [
+    { label: 'Gemini 3.5 Flash', status: liveConfigured ? 'Live' : 'Needs key', detail: health?.plannerModel || 'planning model', icon: Cpu },
+    { label: 'Managed workflow', status: liveConfigured ? 'Backend wired' : 'Offline', detail: 'Express API orchestrates model calls', icon: Activity },
+    { label: 'Veo 3.1 video', status: liveConfigured ? 'Live jobs' : 'Needs key', detail: health?.videoModel || 'video model', icon: Film },
+    { label: 'Lyria', status: liveConfigured ? 'Plan wired' : 'Needs key', detail: 'control plan now, stream next', icon: Music },
+    { label: 'Storage', status: 'Local', detail: 'uploads + generated clips on disk', icon: Database },
+    { label: 'API server', status: health?.ok ? 'Reachable' : 'Start it', detail: 'npm run api on port 8787', icon: Server }
+  ];
 
   const handleSelectProject = (id) => {
     setActiveProjectId(id);
@@ -315,7 +334,7 @@ export default function App() {
         
         {/* App Title logo */}
         <div style={{ padding: '24px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, var(--neon-purple) 0%, var(--neon-cyan) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: '#fff', fontSize: '1.2rem', boxShadow: '0 0 10px var(--neon-purple-glow)' }}>O</div>
+          <div className="brand-mark">O</div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '1.1rem', fontWeight: 900, letterSpacing: '0.02em', color: '#fff' }}>Omnidesk</span>
             <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--neon-cyan)', fontWeight: 700, letterSpacing: '0.05em' }}>Agentic Studio</span>
@@ -323,10 +342,14 @@ export default function App() {
         </div>
 
         {/* Action: New Project */}
-        <div style={{ padding: '16px 20px' }}>
-          <button onClick={handleNewProjectClick} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <button onClick={() => setStep('live_generation')} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+            <Film size={16} />
+            <span>Live Generate</span>
+          </button>
+          <button onClick={handleNewProjectClick} className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
             <Plus size={16} />
-            <span>New Video Project</span>
+            <span>Local Storyboard Demo</span>
           </button>
         </div>
 
@@ -369,19 +392,22 @@ export default function App() {
         {activeProject && step !== 'setup' && (
           <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '20px', background: 'rgba(0,0,0,0.15)' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dark)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-              🧬 Creator DNA Extract
+              Creator DNA Extract
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.75rem' }}>
               <div style={{ display: 'flex', gap: '6px', color: 'var(--text-muted)' }}>
-                <span>🎵 Audio:</span>
+                <Music size={13} />
+                <span>Audio:</span>
                 <span style={{ color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeProject.creatorDNA.audioName}</span>
               </div>
               <div style={{ display: 'flex', gap: '6px', color: 'var(--text-muted)' }}>
-                <span>🕺 Dance:</span>
+                <Film size={13} />
+                <span>Dance:</span>
                 <span style={{ color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeProject.creatorDNA.danceClip}</span>
               </div>
               <div style={{ display: 'flex', gap: '6px', color: 'var(--text-muted)' }}>
-                <span>🧥 Outfit:</span>
+                <Sparkles size={13} />
+                <span>Outfit:</span>
                 <span style={{ color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeProject.creatorDNA.outfits[0]}</span>
               </div>
             </div>
@@ -398,16 +424,22 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 800 }}>
-                {step === 'setup' ? 'Setup Studio Workspace' : activeProject ? activeProject.name : 'Omnidesk Studio'}
+                {step === 'live_generation' ? 'Live Generation Workspace' : step === 'setup' ? 'Setup Studio Workspace' : activeProject ? activeProject.name : 'Omnidesk Studio'}
               </h2>
-              {step !== 'setup' && activeBranch && (
-                <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>
-                  Branch: {activeBranch.name}
-                </span>
+              {step !== 'setup' && step !== 'live_generation' && activeBranch && (
+                <>
+                  <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>
+                    Branch: {activeBranch.name}
+                  </span>
+                  <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>
+                    Demo data
+                  </span>
+                </>
               )}
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
               {step === 'setup' && 'Initialize formats and uploads'}
+              {step === 'live_generation' && 'Upload assets, plan with Gemini, generate clips with Veo'}
               {step === 'brief' && 'Creative direction details'}
               {step === 'agent_desk' && 'Compiling music cues and scenes plans'}
               {step === 'timeline_review' && 'Timeline storyboard review & remix workspace'}
@@ -415,7 +447,7 @@ export default function App() {
           </div>
 
           {/* Quick Step Indicators */}
-          {step !== 'setup' && activeProject && (
+          {step !== 'setup' && step !== 'live_generation' && activeProject && (
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               {[
                 { name: 'DNA & Brief', active: step === 'brief' },
@@ -449,6 +481,40 @@ export default function App() {
 
         {/* Screens Routers */}
         <div style={{ padding: '24px', flex: 1 }}>
+          {step !== 'setup' && activeProject && (
+            <section className="ops-hero">
+              <div className="ops-hero-main">
+                <div className="ops-kicker">
+                  <AlertTriangle size={14} />
+                  Integration status
+                </div>
+                <h1>{liveConfigured ? 'Live Gemini API path is ready.' : 'Connect your AI Studio key to run live generation.'}</h1>
+                <p>
+                  The live workspace calls Gemini 3 Flash for planning and Veo 3.1 for video clips through the local backend.
+                  Omni is not exposed as a public Gemini API endpoint in the docs I found, so the working video path uses Veo.
+                </p>
+              </div>
+              <div className="integration-grid">
+                {integrationStatus.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="integration-card">
+                      <div className="integration-icon"><Icon size={16} /></div>
+                      <div>
+                        <strong>{item.label}</strong>
+                        <span>{item.status}</span>
+                        <small>{item.detail}</small>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {step === 'live_generation' && (
+            <LiveGeneration health={health} />
+          )}
           
           {step === 'setup' && (
             <ProjectSetup 

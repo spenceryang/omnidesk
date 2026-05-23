@@ -70,10 +70,10 @@ export default function AgentDesk({ isFlagged, onCompilationComplete }) {
         <div>
           <h3 style={{ fontSize: '1.4rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Activity size={20} style={{ color: 'var(--neon-cyan)' }} />
-            Agentic Production Desk Orchestrator
+            Simulated Agentic Production Desk
           </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Managed agents collaborating as a team to structure music cues, verify continuity, and draft safety plans.
+            Demo playback of the managed-agent workflow. These logs are cached locally until Gemini 3.5 Flash and Managed Agents are wired.
           </p>
         </div>
         {isCompiling && (
@@ -137,11 +137,11 @@ export default function AgentDesk({ isFlagged, onCompilationComplete }) {
             <span className="terminal-dot dot-red"></span>
             <span className="terminal-dot dot-yellow"></span>
             <span className="terminal-dot dot-green"></span>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>omnidesk-desk-engine.sh</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>cached-agent-run.json</span>
           </div>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Terminal size={12} />
-            <span>PORT 5002</span>
+            <span>DEMO MODE</span>
           </span>
         </div>
 
@@ -157,7 +157,7 @@ export default function AgentDesk({ isFlagged, onCompilationComplete }) {
           ))}
           {isCompiling && (
             <div className="log-line" style={{ color: 'var(--text-dark)' }}>
-              <span>_ cursor blinking... waiting for agent response</span>
+            <span>_ replaying cached agent event stream</span>
               <span className="wave-bar" style={{ display: 'inline-block', width: '2px', height: '10px', marginLeft: '4px', verticalAlign: 'middle', animation: 'waveMove 1s infinite' }}></span>
             </div>
           )}
@@ -172,7 +172,7 @@ export default function AgentDesk({ isFlagged, onCompilationComplete }) {
           onClick={onCompilationComplete}
           style={{ alignSelf: 'flex-end', animation: 'pulseGlow 2s infinite ease-in-out' }}
         >
-          <span>Review Compiled Storyboard</span>
+          <span>Review Demo Storyboard</span>
           <ChevronRight size={16} />
         </button>
       )}

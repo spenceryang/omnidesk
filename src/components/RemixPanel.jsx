@@ -156,7 +156,7 @@ export default function RemixPanel({ project, activeBranch, onApplyRemix, onSwit
           {isRemixing && (
             <div className="terminal-container" style={{ maxHeight: '150px', padding: '10px' }}>
               <div style={{ color: 'var(--neon-purple)', fontWeight: 'bold', fontSize: '0.75rem', marginBottom: '6px' }}>
-                ⚙️ REMIX-AGENT SIMULATING COMPILATION CUES...
+                REMIX AGENT DEMO REPLAY...
               </div>
               {remixLogs.map((log, idx) => (
                 <div key={idx} style={{ fontSize: '0.75rem', marginBottom: '2px' }}>

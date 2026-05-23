@@ -35,8 +35,14 @@ Most AI video tools generate isolated clips from prompts. Omnidesk behaves like 
 - [Technical Spec](docs/technical-spec.md)
 - [Hackathon Build Plan](docs/hackathon-build-plan.md)
 - [Safety and IP Policy](docs/safety-ip-policy.md)
+- [Live Setup](docs/live-setup.md)
+
+## Live Testing
+
+Omnidesk includes a local backend for live Gemini API testing. Add your AI Studio key to `.env`, run `npm run api`, then run `npm run dev` and open the **Live Generate** workspace.
+
+The live path uses Gemini 3 Flash for planning and Veo 3.1 for generated clips. Uploaded creator assets are sent to Gemini Files API for planning context.
 
 ## MVP Boundary
 
 The MVP is not a full professional NLE. The goal is a reliable agentic workflow that can produce a convincing short music-video preview and demonstrate remixability, provenance, and rights-aware generation.
-

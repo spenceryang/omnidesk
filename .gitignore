@@ -26,4 +26,5 @@ pnpm-debug.log*
 uploads/
 exports/
 tmp/
-
+server/uploads/
+server/generated/

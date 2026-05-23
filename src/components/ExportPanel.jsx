@@ -36,7 +36,7 @@ export default function ExportPanel({ project, activeBranch }) {
       setIsExporting(false);
       setExportComplete(true);
       
-      // Create mock file download of project configuration package
+      // Create a local demo download of the project configuration package.
       const exportData = {
         projectName: project.name,
         branchName: activeBranch.name,
@@ -157,7 +157,7 @@ export default function ExportPanel({ project, activeBranch }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
             <span>Model Registry:</span>
-            <span style={{ color: 'var(--text-main)' }}>Omnidesk-Diff-v4 (Local Host)</span>
+            <span style={{ color: 'var(--text-main)' }}>Demo canvas renderer + prompt pack</span>
           </div>
         </div>
 
@@ -180,7 +180,7 @@ export default function ExportPanel({ project, activeBranch }) {
             { key: 'prompts', label: 'Prompt Pack (.txt)', desc: 'Optimized prompts for diffusion models' },
             { key: 'timeline', label: 'Timeline Config (.json)', desc: 'Structural cues, locks, and sections JSON' },
             { key: 'provenance', label: 'Provenance Report (.pdf)', desc: 'Rights checks and safety statement logs' },
-            { key: 'mockVideo', label: 'Storyboard Preview Video (.mp4)', desc: 'Keyframe rendering sequence compilation' }
+            { key: 'mockVideo', label: 'Storyboard Preview Manifest', desc: 'Canvas keyframes, not model-rendered video' }
           ].map(opt => (
             <div 
               key={opt.key}

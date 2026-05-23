@@ -141,8 +141,8 @@ export default function BriefInput({ project, onStartProduction }) {
                 IP Safety Screen: {isSafe ? 'No Banned Elements Detected' : 'Trademark / IP Warning Flagged'}
               </span>
             </div>
-            <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginLeft: 'auto' }}>
-              AGENT: IP-SAFETY-v1.4
+          <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+              LOCAL RULE SET: IP-SAFETY-v1.4
             </span>
           </div>
 
@@ -176,7 +176,7 @@ export default function BriefInput({ project, onStartProduction }) {
 
           {isSafe && (
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              Your brief avoids copyrighted IP. Generation will qualify for a higher **Originality Score (+20%)** by using pure aesthetic descriptions and creator-owned assets.
+              Your brief avoids the local blocklist. The live Gemini safety agent is not connected yet; this is a frontend-only preflight.
             </p>
           )}
         </div>
