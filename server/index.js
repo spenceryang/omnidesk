@@ -74,7 +74,10 @@ async function uploadToGemini(file) {
   };
 }
 
-function productionPrompt({ brief, targetFormat, durationSeconds, constraints }, uploadedFiles) {
+function productionPrompt({ brief, targetFormat, durationSeconds, sceneCount, constraints }, uploadedFiles) {
+  const targetDuration = Number(durationSeconds || 60);
+  const targetSceneCount = Number(sceneCount || 10);
+  const sceneDuration = Math.max(4, Math.round(targetDuration / targetSceneCount));
   const assetSummary = uploadedFiles.map((file, index) => (
     `${index + 1}. ${file.originalName} (${file.mimeType})`
   )).join('\n');
@@ -87,7 +90,9 @@ Creator brief:
 ${brief || 'Create an original, rights-safe music video from the uploaded creator assets.'}
 
 Target format: ${targetFormat || '9:16'}
-Target total duration seconds: ${durationSeconds || 24}
+Target total duration seconds: ${targetDuration}
+Target scene count: ${targetSceneCount}
+Target generated clip duration per scene: ${sceneDuration} seconds
 Creator constraints:
 ${constraints || 'Original, rights-safe, no named franchise or artist imitation.'}
 
@@ -134,7 +139,7 @@ Return this JSON shape:
       "negativePrompt": string,
       "recommendedModel": "veo-3.1-generate-preview",
       "aspectRatio": "9:16|16:9",
-      "durationSeconds": 4 | 6 | 8
+      "durationSeconds": 6
     }
   ]
 }
@@ -142,9 +147,12 @@ Return this JSON shape:
 Rules:
 - Avoid named artists, celebrity likenesses, copyrighted characters, protected logos, and franchise lookalikes.
 - If the user asks for risky IP, rewrite it into original descriptive language.
-- Prefer 4-8 second scenes because Veo generation is clip-based.
+- Return exactly ${targetSceneCount} scenes for a ${targetDuration}-second music video.
+- Each scene should be roughly ${sceneDuration} seconds and should be directly generatable as a standalone Veo clip.
+- Use scene IDs scene_01 through scene_${String(targetSceneCount).padStart(2, '0')}.
+- Cover the whole music-video arc: hook/open, world setup, verse 1, motif reveal, chorus 1, post-chorus, bridge, final chorus, climax, outro/resolution.
 - If uploaded dance video is present, preserve movement timing conceptually without impersonating identity unless consent is clear.
-- Make the first 1-3 scenes the highest demo impact.`;
+- Make scenes 1, 5, and 9 the highest demo-impact moments.`;
 }
 
 app.get('/api/health', (_req, res) => {

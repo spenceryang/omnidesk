@@ -13,11 +13,12 @@ export async function getHealth() {
   return parseResponse(response);
 }
 
-export async function createLivePlan({ brief, targetFormat, durationSeconds, constraints, assets }) {
+export async function createLivePlan({ brief, targetFormat, durationSeconds, sceneCount, constraints, assets }) {
   const formData = new FormData();
   formData.append('brief', brief);
   formData.append('targetFormat', targetFormat);
   formData.append('durationSeconds', String(durationSeconds));
+  formData.append('sceneCount', String(sceneCount || 10));
   formData.append('constraints', constraints);
   for (const asset of assets || []) {
     formData.append('assets', asset);

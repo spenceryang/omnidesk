@@ -19,7 +19,7 @@ import {
   startVideoJob
 } from '../services/liveApi';
 
-const defaultBrief = 'Original neon performance music video using my uploaded creator assets. High-energy chorus, cinematic camera movement, strong continuity, no franchise references or named artist imitation.';
+const defaultBrief = 'Original one-minute neon performance music video using my uploaded creator assets. Break it into 10 coherent scenes with a strong hook, verse, chorus, bridge, final chorus, and outro. Keep cinematic camera movement, strong continuity, and no franchise references or named artist imitation.';
 
 function SceneGenerationCard({ scene, onStart, job }) {
   const isRunning = job?.status === 'running';
@@ -60,7 +60,8 @@ function SceneGenerationCard({ scene, onStart, job }) {
 export default function LiveGeneration({ health }) {
   const [brief, setBrief] = useState(defaultBrief);
   const [targetFormat, setTargetFormat] = useState('9:16');
-  const [durationSeconds, setDurationSeconds] = useState(24);
+  const [durationSeconds, setDurationSeconds] = useState(60);
+  const [sceneCount, setSceneCount] = useState(10);
   const [constraints, setConstraints] = useState('Use only original, rights-safe aesthetics. Preserve uploaded creator movement conceptually. No copyrighted characters, no named artist imitation, no celebrity likeness.');
   const [assets, setAssets] = useState([]);
   const [planResponse, setPlanResponse] = useState(null);
@@ -128,6 +129,7 @@ export default function LiveGeneration({ health }) {
         brief,
         targetFormat,
         durationSeconds,
+        sceneCount,
         constraints,
         assets
       });
@@ -151,7 +153,7 @@ export default function LiveGeneration({ health }) {
         prompt: scene.veoPrompt,
         negativePrompt: scene.negativePrompt,
         aspectRatio: scene.aspectRatio || targetFormat,
-        durationSeconds: scene.durationSeconds || 8
+        durationSeconds: scene.durationSeconds || Math.round(durationSeconds / sceneCount)
       });
       setJobs(prev => ({
         ...prev,
@@ -233,7 +235,11 @@ export default function LiveGeneration({ health }) {
           </label>
           <label>
             <span>Total target seconds</span>
-            <input value={durationSeconds} onChange={(event) => setDurationSeconds(Number(event.target.value))} type="number" min="8" max="60" className="studio-input" />
+            <input value={durationSeconds} onChange={(event) => setDurationSeconds(Number(event.target.value))} type="number" min="10" max="60" className="studio-input" />
+          </label>
+          <label>
+            <span>Scene count</span>
+            <input value={sceneCount} onChange={(event) => setSceneCount(Number(event.target.value))} type="number" min="1" max="10" className="studio-input" />
           </label>
         </div>
 
