@@ -76,7 +76,7 @@ export async function startVideoJob({ projectId, sceneId, sceneTitle, prompt, ne
 }
 
 export async function getVideoJob(jobId) {
-  const response = await fetch(`/api/live/videos/${jobId}`);
+  const response = await fetch(`/api/live/video-job?jobId=${encodeURIComponent(jobId)}`);
   return parseResponse(response);
 }
 

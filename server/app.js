@@ -943,10 +943,10 @@ app.post('/api/live/videos', async (req, res, next) => {
   }
 });
 
-app.get('/api/live/videos/:jobId', async (req, res, next) => {
+async function respondWithVideoJob(req, res, next, jobId) {
   try {
     assertConfigured();
-    const job = videoJobs.get(req.params.jobId) || await getVideoJobRecord(req.params.jobId);
+    const job = videoJobs.get(jobId) || await getVideoJobRecord(jobId);
     if (!job) {
       res.status(404).json({ ok: false, error: 'Unknown video job.' });
       return;
@@ -1015,6 +1015,20 @@ app.get('/api/live/videos/:jobId', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+}
+
+app.get('/api/live/video-job', async (req, res, next) => {
+  const jobId = String(req.query.jobId || '').trim();
+  if (!jobId) {
+    res.status(400).json({ ok: false, error: 'Missing jobId.' });
+    return;
+  }
+
+  await respondWithVideoJob(req, res, next, jobId);
+});
+
+app.get('/api/live/videos/:jobId', async (req, res, next) => {
+  await respondWithVideoJob(req, res, next, req.params.jobId);
 });
 
 app.post('/api/live/compile', async (req, res, next) => {
