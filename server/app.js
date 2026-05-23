@@ -1047,6 +1047,17 @@ app.get('/api/live/videos/:jobId', async (req, res, next) => {
 app.post('/api/live/compile', async (req, res, next) => {
   try {
     const { projectId, clips = [], title = 'omnidesk-final', musicTrack = null } = req.body;
+    if (!projectId) {
+      res.status(400).json({ ok: false, error: 'Missing projectId. Create a music-video plan before combining clips so the final render can be saved to Discover.' });
+      return;
+    }
+
+    const projectRecord = await getProjectRecord(projectId);
+    if (!projectRecord) {
+      res.status(404).json({ ok: false, error: 'Project record not found. Create a new plan, generate clips, then combine again.' });
+      return;
+    }
+
     if (!Array.isArray(clips) || clips.length === 0) {
       res.status(400).json({ ok: false, error: 'No completed clips were provided.' });
       return;
@@ -1125,18 +1136,22 @@ app.post('/api/live/compile', async (req, res, next) => {
       completedAt: new Date().toISOString()
     };
 
-    if (projectId) {
-      await updateProjectRecord(projectId, (record) => ({
-        ...record,
-        status: 'completed',
-        finalVideo
-      }));
+    const updatedProject = await updateProjectRecord(projectId, (record) => ({
+      ...record,
+      status: 'completed',
+      finalVideo
+    }));
+
+    if (!updatedProject) {
+      res.status(404).json({ ok: false, error: 'Final render was created, but the project record could not be updated for Discover.' });
+      return;
     }
 
     res.json({
       ok: true,
       ...finalVideo,
-      clipCount: inputPaths.length
+      clipCount: inputPaths.length,
+      project: publicProject(updatedProject)
     });
   } catch (err) {
     next(err);

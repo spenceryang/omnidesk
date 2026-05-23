@@ -446,6 +446,14 @@ export default function LiveGeneration({ health }) {
         musicTrack: track
       });
       setFinalVideo(response);
+      if (response.project) {
+        setPlanResponse((prev) => ({
+          ...(prev || {}),
+          project: response.project,
+          projectId: response.project.id
+        }));
+        setProjectId(response.project.id);
+      }
       setAutoCompile(false);
     } catch (err) {
       setError(err.message);
