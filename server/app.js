@@ -49,64 +49,24 @@ const usesBlobStorage = Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env
 
 const MANAGED_AGENT_ROLES = [
   {
-    id: 'music-analyst',
-    name: 'Music Analyst Agent',
-    mission: 'Analyze the music-video timing, section map, energy curve, beat-sync opportunities, and audio risks.'
-  },
-  {
-    id: 'creator-dna',
-    name: 'Creator DNA Agent',
-    mission: 'Inspect how well uploaded assets, choreography, wardrobe, references, motifs, and personal style are reflected in the plan.'
-  },
-  {
-    id: 'creative-director',
-    name: 'Creative Director Agent',
-    mission: 'Strengthen the concept, visual language, story arc, emotional progression, and originality of the one-minute video.'
-  },
-  {
-    id: 'scene-planner',
-    name: 'Scene Planner Agent',
-    mission: 'Verify the 10-scene structure, pacing, transitions, scene contrast, and complete 60-second coverage.'
-  },
-  {
-    id: 'continuity-supervisor',
-    name: 'Continuity Supervisor Agent',
-    mission: 'Check cross-scene consistency for subject, wardrobe, movement, color palette, props, locations, and motifs.'
-  },
-  {
     id: 'ip-safety',
     name: 'IP Safety Agent',
     mission: 'Identify copyright, trademark, celebrity likeness, artist-style imitation, music-rights, and platform-safety risks.'
   },
   {
     id: 'prompt-engineer',
-    name: 'Veo Prompt Engineer Agent',
+    name: 'Video Prompt Engineer Agent',
     mission: 'Improve every Veo prompt for clear subject, action, camera, lighting, style, duration, and negative constraints.'
   },
   {
-    id: 'generation-router',
-    name: 'Generation Router Agent',
-    mission: 'Decide which scenes should be generated first, which need still/keyframe fallback, and what settings reduce latency risk.'
+    id: 'creative-director',
+    name: 'Creative Director Agent',
+    mission: 'Strengthen the concept, visual language, story arc, emotional progression, and originality of the music video.'
   },
   {
-    id: 'audio-producer',
-    name: 'Lyria Audio Producer Agent',
-    mission: 'Create a safe music-control strategy for intros, drops, transitions, stingers, and section-level musical variations.'
-  },
-  {
-    id: 'editor',
-    name: 'Editor Agent',
-    mission: 'Plan assembly, beat cuts, match cuts, captions, transitions, preview order, and final export structure.'
-  },
-  {
-    id: 'remix',
-    name: 'Remix Agent',
-    mission: 'Define remixable controls, lock rules, branch strategy, and examples for changing style while preserving continuity.'
-  },
-  {
-    id: 'qa-showrunner',
-    name: 'Demo QA Showrunner Agent',
-    mission: 'Find demo failure modes and produce a reliable 3-minute judging flow with fallback assets and talking points.'
+    id: 'music-analyst',
+    name: 'Music Analyst Agent',
+    mission: 'Analyze the music-video timing, section map, energy curve, beat-sync opportunities, Lyria continuity, and audio risks.'
   }
 ];
 
@@ -463,6 +423,7 @@ ${JSON.stringify(plan || {}, null, 2)}`;
 
   const interaction = await ai.interactions.create({
     agent: managedAgent,
+    environment: { type: 'remote' },
     input
   });
 
@@ -1192,7 +1153,7 @@ app.post('/api/live/managed-agent-review', async (req, res, next) => {
 
     const interaction = await ai.interactions.create({
       agent: managedAgent,
-      environment: 'remote',
+      environment: { type: 'remote' },
       input: `You are the Omnidesk managed agent quality reviewer.
 
 Review this music-video production plan for:

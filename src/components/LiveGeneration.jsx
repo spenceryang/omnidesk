@@ -145,6 +145,35 @@ function buildAgentProgressReview({ roles, results, status = 'running' }) {
   };
 }
 
+function AudioLane({ lyriaPlan, musicTrack, isMakingLyriaPlan, isGeneratingMusicTrack }) {
+  const cueStatus = isMakingLyriaPlan ? 'Planning' : lyriaPlan ? 'Ready' : 'Not planned';
+  const trackStatus = isGeneratingMusicTrack ? 'Generating' : musicTrack ? 'Ready' : 'Not generated';
+
+  return (
+    <section className="audio-lane">
+      <div className="audio-lane-header">
+        <span>Lyria Music Track</span>
+        <strong>{musicTrack ? 'Separate audio ready' : 'Separate audio lane'}</strong>
+      </div>
+      <p>Lyria generates one continuous music bed separately from the Veo clips. Final combine uses that track across both scenes so the video does not restart the music per clip.</p>
+      <div className="audio-step-row">
+        <div className="audio-step ready">
+          <span>Scene plan</span>
+          <b>Ready</b>
+        </div>
+        <div className={`audio-step ${lyriaPlan ? 'ready' : isMakingLyriaPlan ? 'working' : ''}`}>
+          <span>Music cues</span>
+          <b>{cueStatus}</b>
+        </div>
+        <div className={`audio-step ${musicTrack ? 'ready' : isGeneratingMusicTrack ? 'working' : ''}`}>
+          <span>Lyria track</span>
+          <b>{trackStatus}</b>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function LiveGeneration({ health }) {
   const [brief, setBrief] = useState(defaultBrief);
   const [lyrics, setLyrics] = useState('');
@@ -330,11 +359,6 @@ export default function LiveGeneration({ health }) {
       setPlanResponse(response);
       const nextProjectId = response.projectId || response.project?.id || null;
       setProjectId(nextProjectId);
-      setIsPlanning(false);
-      await runAgentDesk({
-        targetPlan: response.plan,
-        targetProjectId: nextProjectId
-      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -596,7 +620,7 @@ export default function LiveGeneration({ health }) {
               </div>
               <div>
                 <span>Agents</span>
-                <strong>{managedAgents.length || 12}</strong>
+                <strong>{managedAgents.length || 4}</strong>
               </div>
             </div>
 
@@ -627,6 +651,13 @@ export default function LiveGeneration({ health }) {
               </button>
             </div>
 
+            <AudioLane
+              lyriaPlan={lyriaPlan}
+              musicTrack={musicTrack}
+              isMakingLyriaPlan={isMakingLyriaPlan}
+              isGeneratingMusicTrack={isGeneratingMusicTrack}
+            />
+
             <section className={`agent-desk ${agentReady ? 'ready' : agentBlocked ? 'blocked' : 'pending'}`}>
               <div className="agent-desk-header">
                 <div>
@@ -635,13 +666,13 @@ export default function LiveGeneration({ health }) {
                 </div>
                 <b>
                   {isRunningSwarm
-                    ? `${swarmResult?.count || 0}/${agentReviewRoles.length || managedAgents.length || 12}`
+                    ? `${swarmResult?.count || 0}/${agentReviewRoles.length || managedAgents.length || 4}`
                     : agentReady ? 'Approved' : agentBlocked ? 'Blocked' : 'Required'}
                 </b>
               </div>
               <p>Omnidesk uses Gemini Managed Agents as a production desk. A swarm of specialist agents reviews the creator brief, lyrics, assets, IP safety, music continuity, Veo prompts, and final edit readiness before generation.</p>
-              {(isRunningSwarm || !swarmResult) && <AgentWorkerAnimation roles={managedAgents} />}
-              {agentReviewRoles.length > 0 && (
+              {isRunningSwarm && <AgentWorkerAnimation roles={managedAgents} />}
+              {(isRunningSwarm || swarmResult) && agentReviewRoles.length > 0 && (
                 <AgentProgressList
                   roles={agentReviewRoles}
                   progress={agentProgress}
@@ -656,7 +687,7 @@ export default function LiveGeneration({ health }) {
                 </div>
               )}
               {!agentReady && !isRunningSwarm && (
-                <small>Generation is locked until the managed-agent desk reviews this plan.</small>
+                <small>{swarmResult ? 'Generation is locked until the managed-agent desk has no blockers.' : 'Run this desk manually when the scene plan is ready for review.'}</small>
               )}
             </section>
 
