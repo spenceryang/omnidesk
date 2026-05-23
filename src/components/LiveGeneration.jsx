@@ -36,7 +36,11 @@ function isQuotaError(message = '') {
   return /quota|rate.?limit|resource has been exhausted/i.test(message);
 }
 
-function SceneGenerationCard({ scene, onStart, job, fallbackDuration }) {
+function agentDeskPassed(result) {
+  return Boolean(result?.aggregate && Number(result.aggregate.blocked || 0) === 0);
+}
+
+function SceneGenerationCard({ scene, onStart, job, fallbackDuration, agentReady }) {
   const isRunning = job?.status === 'running';
   const isDone = job?.status === 'completed';
 
@@ -65,8 +69,9 @@ function SceneGenerationCard({ scene, onStart, job, fallbackDuration }) {
 
       <button
         className={isDone ? 'btn-secondary' : 'btn-primary'}
-        disabled={isRunning}
+        disabled={isRunning || !agentReady}
         onClick={() => onStart(scene)}
+        title={!agentReady ? 'Run Managed Agent Production Desk before generating clips.' : undefined}
       >
         {isRunning ? <Loader2 size={16} className="spin-icon" /> : isDone ? <Download size={16} /> : <Film size={16} />}
         <span>{isRunning ? 'Generating...' : isDone ? 'Regenerate' : 'Generate clip'}</span>
@@ -79,6 +84,20 @@ function SceneGenerationCard({ scene, onStart, job, fallbackDuration }) {
         </div>
       )}
     </article>
+  );
+}
+
+function AgentWorkerAnimation({ roles = [] }) {
+  const workers = roles.slice(0, 7);
+  return (
+    <div className="agent-workers" aria-label="Managed agents working">
+      {workers.map((role, index) => (
+        <div key={role.id || index} className="agent-worker" style={{ '--delay': `${index * 110}ms` }}>
+          <span>{role.name?.split(' ')[0] || 'Agent'}</span>
+          <i />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -121,6 +140,8 @@ export default function LiveGeneration({ health }) {
   ), [jobs, scenes]);
   const completedClipCount = completedClips.length;
   const allClipsComplete = scenes.length > 0 && completedClipCount === scenes.length;
+  const agentReady = agentDeskPassed(swarmResult);
+  const agentBlocked = Number(swarmResult?.aggregate?.blocked || 0) > 0;
 
   useEffect(() => {
     getManagedAgents()
@@ -215,14 +236,28 @@ export default function LiveGeneration({ health }) {
       });
       setPlanResponse(response);
       setProjectId(response.projectId || response.project?.id || null);
+      setIsRunningSwarm(true);
+      const agentResponse = await runManagedAgentSwarm({
+        brief,
+        lyrics,
+        plan: response.plan,
+        projectId: response.projectId || response.project?.id || null
+      });
+      setSwarmResult(agentResponse);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsPlanning(false);
+      setIsRunningSwarm(false);
     }
   };
 
   const startSceneGeneration = async (scene) => {
+    if (!agentReady) {
+      setError('Run Managed Agent Production Desk before generating clips.');
+      return null;
+    }
+
     setError('');
     setJobs((prev) => ({
       ...prev,
@@ -263,6 +298,10 @@ export default function LiveGeneration({ health }) {
 
   const generateMusicTrack = useCallback(async () => {
     if (!plan) return null;
+    if (!agentReady) {
+      setError('Run Managed Agent Production Desk before generating a Lyria track.');
+      return null;
+    }
     setError('');
     setIsGeneratingMusicTrack(true);
 
@@ -282,7 +321,7 @@ export default function LiveGeneration({ health }) {
     } finally {
       setIsGeneratingMusicTrack(false);
     }
-  }, [brief, durationSeconds, lyrics, plan, projectId]);
+  }, [agentReady, brief, durationSeconds, lyrics, plan, projectId]);
 
   const handleCompileVideo = useCallback(async () => {
     if (!plan || !allClipsComplete) return;
@@ -314,6 +353,11 @@ export default function LiveGeneration({ health }) {
 
   const handleGenerateAllAndCompile = async () => {
     if (!plan || scenes.length === 0) return;
+    if (!agentReady) {
+      setError('Run Managed Agent Production Desk before generating clips.');
+      return;
+    }
+
     setError('');
     setFinalVideo(null);
     setAutoCompile(true);
@@ -364,14 +408,14 @@ export default function LiveGeneration({ health }) {
     }
   };
 
-  const handleManagedAgentSwarm = async () => {
+  const handleRegenerateAgentDesk = async () => {
     if (!plan) return;
     setIsRunningSwarm(true);
     setError('');
     setSwarmResult(null);
 
     try {
-      const response = await runManagedAgentSwarm({ brief, plan, projectId });
+      const response = await runManagedAgentSwarm({ brief, lyrics, plan, projectId });
       setSwarmResult(response);
     } catch (err) {
       setError(err.message);
@@ -484,32 +528,54 @@ export default function LiveGeneration({ health }) {
             </div>
 
             <div className="action-row">
-              <button className="btn-secondary" onClick={handleLyriaPlan} disabled={isMakingLyriaPlan}>
+              <button className="btn-secondary" onClick={handleLyriaPlan} disabled={isMakingLyriaPlan || !agentReady}>
                 {isMakingLyriaPlan ? <Loader2 size={16} className="spin-icon" /> : <Music size={16} />}
                 <span>Plan music cues</span>
               </button>
 
-              <button className="btn-secondary" onClick={generateMusicTrack} disabled={isGeneratingMusicTrack}>
+              <button className="btn-secondary" onClick={generateMusicTrack} disabled={isGeneratingMusicTrack || !agentReady}>
                 {isGeneratingMusicTrack ? <Loader2 size={16} className="spin-icon" /> : <Music size={16} />}
                 <span>{musicTrack ? 'Regenerate Lyria track' : 'Generate Lyria track'}</span>
               </button>
 
-              <button className="btn-primary" onClick={handleManagedAgentSwarm} disabled={isRunningSwarm}>
+              <button className="btn-primary" onClick={handleRegenerateAgentDesk} disabled={isRunningSwarm}>
                 {isRunningSwarm ? <Loader2 size={16} className="spin-icon" /> : <Sparkles size={16} />}
-                <span>{isRunningSwarm ? 'Checking...' : 'Run agent review'}</span>
+                <span>{isRunningSwarm ? 'Agents reviewing...' : 'Run Managed Agent Production Desk'}</span>
               </button>
             </div>
+
+            <section className={`agent-desk ${agentReady ? 'ready' : agentBlocked ? 'blocked' : 'pending'}`}>
+              <div className="agent-desk-header">
+                <div>
+                  <span>Gemini Managed Agents</span>
+                  <strong>Production Desk</strong>
+                </div>
+                <b>{isRunningSwarm ? 'Reviewing' : agentReady ? 'Approved' : agentBlocked ? 'Blocked' : 'Required'}</b>
+              </div>
+              <p>Omnidesk uses Gemini Managed Agents as a production desk. A swarm of specialist agents reviews the creator brief, lyrics, assets, IP safety, music continuity, Veo prompts, and final edit readiness before generation.</p>
+              {(isRunningSwarm || !swarmResult) && <AgentWorkerAnimation roles={managedAgents} />}
+              {swarmResult?.aggregate && (
+                <div className="swarm-metrics">
+                  <div><strong>{swarmResult.aggregate.pass}</strong><span>Pass</span></div>
+                  <div><strong>{swarmResult.aggregate.warn}</strong><span>Warn</span></div>
+                  <div><strong>{swarmResult.aggregate.blocked}</strong><span>Block</span></div>
+                </div>
+              )}
+              {!agentReady && !isRunningSwarm && (
+                <small>Generation is locked until the managed-agent desk reviews this plan.</small>
+              )}
+            </section>
 
             <div className="render-panel">
               <div>
                 <span>Final render</span>
                 <strong>{completedClipCount}/{scenes.length} clips ready</strong>
-                <small>Generate all runs one Veo clip at a time. The default 16-second render uses two 8-second Veo clips.</small>
+                <small>{agentReady ? 'Generate all runs one Veo clip at a time. The default 16-second render uses two 8-second Veo clips.' : 'Locked until Gemini Managed Agents finish the production desk review.'}</small>
               </div>
               <button
                 className="btn-primary"
                 onClick={handleGenerateAllAndCompile}
-                disabled={isGeneratingAll || isCompiling || scenes.length === 0}
+                disabled={isGeneratingAll || isCompiling || scenes.length === 0 || !agentReady}
               >
                 {isGeneratingAll || (autoCompile && !allClipsComplete) ? <Loader2 size={16} className="spin-icon" /> : <Film size={16} />}
                 <span>{isGeneratingAll || (autoCompile && !allClipsComplete) ? 'Generating clips...' : 'Generate all & combine'}</span>
@@ -517,7 +583,7 @@ export default function LiveGeneration({ health }) {
               <button
                 className="btn-secondary"
                 onClick={handleCompileVideo}
-                disabled={!allClipsComplete || isCompiling}
+                disabled={!allClipsComplete || isCompiling || !agentReady}
               >
                 {isCompiling ? <Loader2 size={16} className="spin-icon" /> : <Download size={16} />}
                 <span>{isCompiling ? 'Combining...' : 'Combine ready clips'}</span>
@@ -582,6 +648,7 @@ export default function LiveGeneration({ health }) {
                 scene={scene}
                 job={jobs[scene.id]}
                 fallbackDuration={fallbackDuration}
+                agentReady={agentReady}
                 onStart={handleGenerateScene}
               />
             ))}

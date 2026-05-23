@@ -434,7 +434,7 @@ async function syncCompletedJobToProject(job) {
   });
 }
 
-async function runManagedRole({ role, brief, plan }) {
+async function runManagedRole({ role, brief, lyrics, plan }) {
   const input = `You are the ${role.name} for Omnidesk, a live music-video generation product.
 
 Mission:
@@ -454,6 +454,9 @@ Review this production plan and return concise JSON only:
 
 Creator brief:
 ${brief || ''}
+
+Creator lyrics:
+${lyrics || ''}
 
 Production plan:
 ${JSON.stringify(plan || {}, null, 2)}`;
@@ -1235,14 +1238,14 @@ app.post('/api/live/managed-agent-swarm', async (req, res, next) => {
       return;
     }
 
-    const { brief, plan, selectedAgentIds, projectId } = req.body;
+    const { brief, lyrics, plan, selectedAgentIds, projectId } = req.body;
     const selected = Array.isArray(selectedAgentIds) && selectedAgentIds.length
       ? MANAGED_AGENT_ROLES.filter((role) => selectedAgentIds.includes(role.id))
       : MANAGED_AGENT_ROLES;
 
     const results = [];
     for (const role of selected) {
-      results.push(await runManagedRole({ role, brief, plan }));
+      results.push(await runManagedRole({ role, brief, lyrics, plan }));
     }
 
     const aggregate = {

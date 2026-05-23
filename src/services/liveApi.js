@@ -121,11 +121,11 @@ export async function getManagedAgents() {
   return parseResponse(response);
 }
 
-export async function runManagedAgentSwarm({ brief, plan, selectedAgentIds, projectId }) {
+export async function runManagedAgentSwarm({ brief, lyrics, plan, selectedAgentIds, projectId }) {
   const response = await fetch('/api/live/managed-agent-swarm', {
     method: 'POST',
     headers: jsonHeaders,
-    body: JSON.stringify({ brief, plan, selectedAgentIds, projectId })
+    body: JSON.stringify({ brief, lyrics, plan, selectedAgentIds, projectId })
   });
   return parseResponse(response);
 }
