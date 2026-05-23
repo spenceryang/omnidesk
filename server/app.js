@@ -13,6 +13,7 @@ import ffmpegPath from 'ffmpeg-static';
 import { list, put } from '@vercel/blob';
 import {
   GoogleGenAI,
+  GenerateVideosOperation,
   createPartFromUri,
   createUserContent
 } from '@google/genai';
@@ -24,10 +25,12 @@ const uploadDir = path.join(runtimeDir, 'uploads');
 const generatedDir = path.join(runtimeDir, 'generated');
 const dataDir = path.join(runtimeDir, 'data');
 const localProjectsDir = path.join(dataDir, 'projects');
+const localJobsDir = path.join(dataDir, 'jobs');
 
 await fs.mkdir(uploadDir, { recursive: true });
 await fs.mkdir(generatedDir, { recursive: true });
 await fs.mkdir(localProjectsDir, { recursive: true });
+await fs.mkdir(localJobsDir, { recursive: true });
 
 const app = express();
 const upload = multer({ dest: uploadDir, limits: { fileSize: 80 * 1024 * 1024 } });
@@ -167,6 +170,14 @@ function normalizeError(err) {
   return fallback;
 }
 
+function hydrateVideoOperation(job) {
+  if (job.operation?._fromAPIResponse) return job.operation;
+  const operation = new GenerateVideosOperation();
+  Object.assign(operation, job.operation || {});
+  operation.name = operation.name || job.operationName;
+  return operation;
+}
+
 function publicProject(record) {
   return {
     id: record.id,
@@ -192,6 +203,16 @@ function localProjectPath(projectId) {
   return path.join(localProjectsDir, `${projectId}.json`);
 }
 
+function localJobPath(jobId) {
+  return path.join(localJobsDir, `${jobId}.json`);
+}
+
+function blobJsonUrl(blob) {
+  const source = blob.downloadUrl || blob.url;
+  const separator = source.includes('?') ? '&' : '?';
+  return `${source}${separator}t=${Date.now()}`;
+}
+
 async function saveProjectRecord(record) {
   const updatedRecord = {
     ...record,
@@ -206,7 +227,7 @@ async function saveProjectRecord(record) {
         access: 'public',
         allowOverwrite: true,
         contentType: 'application/json',
-        cacheControlMaxAge: 60
+        cacheControlMaxAge: 0
       }
     );
     return updatedRecord;
@@ -216,6 +237,30 @@ async function saveProjectRecord(record) {
   return updatedRecord;
 }
 
+async function saveVideoJobRecord(job) {
+  const updatedJob = {
+    ...job,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (usesBlobStorage) {
+    await put(
+      `omnidesk/jobs/${updatedJob.id}.json`,
+      JSON.stringify(updatedJob, null, 2),
+      {
+        access: 'public',
+        allowOverwrite: true,
+        contentType: 'application/json',
+        cacheControlMaxAge: 0
+      }
+    );
+    return updatedJob;
+  }
+
+  await fs.writeFile(localJobPath(updatedJob.id), JSON.stringify(updatedJob, null, 2));
+  return updatedJob;
+}
+
 async function getProjectRecord(projectId) {
   if (!projectId) return null;
 
@@ -223,13 +268,32 @@ async function getProjectRecord(projectId) {
     const listed = await list({ prefix: `omnidesk/projects/${projectId}/record.json`, limit: 1 });
     const recordBlob = listed.blobs.find((blob) => blob.pathname.endsWith('/record.json'));
     if (!recordBlob) return null;
-    const response = await fetch(recordBlob.url, { cache: 'no-store' });
+    const response = await fetch(blobJsonUrl(recordBlob), { cache: 'no-store' });
     if (!response.ok) return null;
     return response.json();
   }
 
   try {
     return JSON.parse(await fs.readFile(localProjectPath(projectId), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function getVideoJobRecord(jobId) {
+  if (!jobId) return null;
+
+  if (usesBlobStorage) {
+    const listed = await list({ prefix: `omnidesk/jobs/${jobId}.json`, limit: 1 });
+    const jobBlob = listed.blobs.find((blob) => blob.pathname.endsWith(`${jobId}.json`));
+    if (!jobBlob) return null;
+    const response = await fetch(blobJsonUrl(jobBlob), { cache: 'no-store' });
+    if (!response.ok) return null;
+    return response.json();
+  }
+
+  try {
+    return JSON.parse(await fs.readFile(localJobPath(jobId), 'utf8'));
   } catch {
     return null;
   }
@@ -249,7 +313,7 @@ async function listProjectRecords() {
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
     const records = await Promise.all(recordBlobs.map(async (blob) => {
       try {
-        const response = await fetch(blob.url, { cache: 'no-store' });
+        const response = await fetch(blobJsonUrl(blob), { cache: 'no-store' });
         return response.ok ? response.json() : null;
       } catch {
         return null;
@@ -314,6 +378,30 @@ async function ensureClipLocalFile(clip, index) {
   const localPath = path.join(generatedDir, `compile-input-${crypto.randomUUID()}-${index}.mp4`);
   await fs.writeFile(localPath, Buffer.from(await response.arrayBuffer()));
   return localPath;
+}
+
+async function syncCompletedJobToProject(job) {
+  if (!job.projectId || !job.outputUrl) return;
+
+  await updateProjectRecord(job.projectId, (record) => {
+    const clips = (record.clips || []).filter((clip) => clip.sceneId !== job.sceneId);
+    clips.push({
+      sceneId: job.sceneId,
+      title: job.sceneTitle || job.sceneId,
+      outputUrl: job.outputUrl,
+      downloadUrl: job.downloadUrl,
+      storage: job.storage,
+      model: job.model,
+      prompt: job.prompt,
+      completedAt: job.completedAt
+    });
+    clips.sort((a, b) => String(a.sceneId).localeCompare(String(b.sceneId)));
+    return {
+      ...record,
+      status: record.finalVideo ? 'completed' : 'clips-generating',
+      clips
+    };
+  });
 }
 
 async function runManagedRole({ role, brief, plan }) {
@@ -635,12 +723,13 @@ app.post('/api/live/videos', async (req, res, next) => {
     });
 
     const jobId = crypto.randomUUID();
-    videoJobs.set(jobId, {
+    const job = await saveVideoJobRecord({
       id: jobId,
       projectId,
       sceneId: sceneId || 'scene',
       sceneTitle,
       operation,
+      operationName: operation.name || null,
       prompt,
       model: videoModel,
       status: 'running',
@@ -648,6 +737,7 @@ app.post('/api/live/videos', async (req, res, next) => {
       outputPath: null,
       outputUrl: null
     });
+    videoJobs.set(jobId, job);
 
     res.json({
       ok: true,
@@ -655,7 +745,7 @@ app.post('/api/live/videos', async (req, res, next) => {
       projectId,
       sceneId,
       model: videoModel,
-      operationName: operation.name || null,
+      operationName: job.operationName,
       status: 'running'
     });
   } catch (err) {
@@ -666,20 +756,25 @@ app.post('/api/live/videos', async (req, res, next) => {
 app.get('/api/live/videos/:jobId', async (req, res, next) => {
   try {
     assertConfigured();
-    const job = videoJobs.get(req.params.jobId);
+    const job = videoJobs.get(req.params.jobId) || await getVideoJobRecord(req.params.jobId);
     if (!job) {
       res.status(404).json({ ok: false, error: 'Unknown video job.' });
       return;
     }
 
     if (job.status === 'completed') {
+      await syncCompletedJobToProject(job);
       res.json({ ok: true, ...job });
       return;
     }
 
-    job.operation = await ai.operations.getVideosOperation({ operation: job.operation });
+    job.operation = await ai.operations.getVideosOperation({ operation: hydrateVideoOperation(job) });
+    job.operationName = job.operation.name || job.operationName || null;
 
     if (!job.operation.done) {
+      job.status = 'running';
+      job.lastCheckedAt = new Date().toISOString();
+      await saveVideoJobRecord(job);
       videoJobs.set(job.id, job);
       res.json({
         ok: true,
@@ -697,6 +792,7 @@ app.get('/api/live/videos/:jobId', async (req, res, next) => {
     if (!generatedVideo?.video) {
       job.status = 'failed';
       job.error = 'Generation completed but no video was returned.';
+      await saveVideoJobRecord(job);
       videoJobs.set(job.id, job);
       res.json({ ok: false, ...job });
       return;
@@ -720,29 +816,10 @@ app.get('/api/live/videos/:jobId', async (req, res, next) => {
     job.downloadUrl = stored.downloadUrl || stored.url;
     job.storage = stored.storage;
     job.completedAt = new Date().toISOString();
+    await saveVideoJobRecord(job);
     videoJobs.set(job.id, job);
 
-    if (job.projectId) {
-      await updateProjectRecord(job.projectId, (record) => {
-        const clips = (record.clips || []).filter((clip) => clip.sceneId !== job.sceneId);
-        clips.push({
-          sceneId: job.sceneId,
-          title: job.sceneTitle || job.sceneId,
-          outputUrl: job.outputUrl,
-          downloadUrl: job.downloadUrl,
-          storage: job.storage,
-          model: job.model,
-          prompt: job.prompt,
-          completedAt: job.completedAt
-        });
-        clips.sort((a, b) => String(a.sceneId).localeCompare(String(b.sceneId)));
-        return {
-          ...record,
-          status: record.finalVideo ? 'completed' : 'clips-generating',
-          clips
-        };
-      });
-    }
+    await syncCompletedJobToProject(job);
 
     res.json({ ok: true, ...job });
   } catch (err) {
