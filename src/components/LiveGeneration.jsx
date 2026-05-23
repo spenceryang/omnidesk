@@ -658,7 +658,6 @@ export default function LiveGeneration({ health }) {
         <div className="empty-state">
           <FileVideo size={28} />
           <strong>No plan yet</strong>
-          <span>Start with a prompt or assets.</span>
         </div>
       )}
     </div>

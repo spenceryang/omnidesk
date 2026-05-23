@@ -61,6 +61,18 @@ export default function App() {
 
         {view === 'create' ? <LiveGeneration health={health} /> : <Discover />}
       </main>
+
+      <footer className="site-footer">
+        <div>
+          <strong>Omnidesk</strong>
+          <span>© 2026 Omnidesk. All rights reserved.</span>
+        </div>
+        <nav aria-label="Footer">
+          <a href="#privacy">Privacy Policy</a>
+          <a href="#terms">Terms</a>
+          <a href="#contact">Contact</a>
+        </nav>
+      </footer>
     </div>
   );
 }
