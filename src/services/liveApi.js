@@ -13,6 +13,11 @@ export async function getHealth() {
   return parseResponse(response);
 }
 
+export async function getDiscoverProjects() {
+  const response = await fetch('/api/discover');
+  return parseResponse(response);
+}
+
 export async function createLivePlan({ brief, targetFormat, durationSeconds, sceneCount, constraints, assets }) {
   const formData = new FormData();
   formData.append('brief', brief);
@@ -31,12 +36,14 @@ export async function createLivePlan({ brief, targetFormat, durationSeconds, sce
   return parseResponse(response);
 }
 
-export async function startVideoJob({ sceneId, prompt, negativePrompt, aspectRatio, durationSeconds }) {
+export async function startVideoJob({ projectId, sceneId, sceneTitle, prompt, negativePrompt, aspectRatio, durationSeconds }) {
   const response = await fetch('/api/live/videos', {
     method: 'POST',
     headers: jsonHeaders,
     body: JSON.stringify({
+      projectId,
       sceneId,
+      sceneTitle,
       prompt,
       negativePrompt,
       aspectRatio,
@@ -51,29 +58,29 @@ export async function getVideoJob(jobId) {
   return parseResponse(response);
 }
 
-export async function compileVideo({ title, clips }) {
+export async function compileVideo({ projectId, title, clips }) {
   const response = await fetch('/api/live/compile', {
     method: 'POST',
     headers: jsonHeaders,
-    body: JSON.stringify({ title, clips })
+    body: JSON.stringify({ projectId, title, clips })
   });
   return parseResponse(response);
 }
 
-export async function createLyriaPlan({ brief, plan }) {
+export async function createLyriaPlan({ brief, plan, projectId }) {
   const response = await fetch('/api/live/lyria-plan', {
     method: 'POST',
     headers: jsonHeaders,
-    body: JSON.stringify({ brief, plan })
+    body: JSON.stringify({ brief, plan, projectId })
   });
   return parseResponse(response);
 }
 
-export async function runManagedAgentReview({ brief, plan }) {
+export async function runManagedAgentReview({ brief, plan, projectId }) {
   const response = await fetch('/api/live/managed-agent-review', {
     method: 'POST',
     headers: jsonHeaders,
-    body: JSON.stringify({ brief, plan })
+    body: JSON.stringify({ brief, plan, projectId })
   });
   return parseResponse(response);
 }
@@ -83,11 +90,11 @@ export async function getManagedAgents() {
   return parseResponse(response);
 }
 
-export async function runManagedAgentSwarm({ brief, plan, selectedAgentIds }) {
+export async function runManagedAgentSwarm({ brief, plan, selectedAgentIds, projectId }) {
   const response = await fetch('/api/live/managed-agent-swarm', {
     method: 'POST',
     headers: jsonHeaders,
-    body: JSON.stringify({ brief, plan, selectedAgentIds })
+    body: JSON.stringify({ brief, plan, selectedAgentIds, projectId })
   });
   return parseResponse(response);
 }

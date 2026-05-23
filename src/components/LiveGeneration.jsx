@@ -77,6 +77,7 @@ export default function LiveGeneration({ health }) {
   const [sceneCount, setSceneCount] = useState(10);
   const [assets, setAssets] = useState([]);
   const [planResponse, setPlanResponse] = useState(null);
+  const [projectId, setProjectId] = useState(null);
   const [lyriaPlan, setLyriaPlan] = useState(null);
   const [managedAgents, setManagedAgents] = useState([]);
   const [swarmResult, setSwarmResult] = useState(null);
@@ -156,6 +157,7 @@ export default function LiveGeneration({ health }) {
     event.preventDefault();
     setError('');
     setPlanResponse(null);
+    setProjectId(null);
     setLyriaPlan(null);
     setSwarmResult(null);
     setJobs({});
@@ -173,6 +175,7 @@ export default function LiveGeneration({ health }) {
         assets
       });
       setPlanResponse(response);
+      setProjectId(response.projectId || response.project?.id || null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -189,7 +192,9 @@ export default function LiveGeneration({ health }) {
 
     try {
       const response = await startVideoJob({
+        projectId,
         sceneId: scene.id,
+        sceneTitle: scene.title,
         prompt: scene.veoPrompt,
         negativePrompt: scene.negativePrompt,
         aspectRatio: scene.aspectRatio || targetFormat,
@@ -223,6 +228,7 @@ export default function LiveGeneration({ health }) {
     setIsCompiling(true);
     try {
       const response = await compileVideo({
+        projectId,
         title: plan.title || 'omnidesk-final',
         clips: completedClips
       });
@@ -234,7 +240,7 @@ export default function LiveGeneration({ health }) {
     } finally {
       setIsCompiling(false);
     }
-  }, [allClipsComplete, completedClips, plan]);
+  }, [allClipsComplete, completedClips, plan, projectId]);
 
   useEffect(() => {
     if (autoCompile && allClipsComplete && !isCompiling && !finalVideo) {
@@ -269,7 +275,7 @@ export default function LiveGeneration({ health }) {
     setError('');
 
     try {
-      const response = await createLyriaPlan({ brief, plan });
+      const response = await createLyriaPlan({ brief, plan, projectId });
       setLyriaPlan(response.plan);
     } catch (err) {
       setError(err.message);
@@ -285,7 +291,7 @@ export default function LiveGeneration({ health }) {
     setSwarmResult(null);
 
     try {
-      const response = await runManagedAgentSwarm({ brief, plan });
+      const response = await runManagedAgentSwarm({ brief, plan, projectId });
       setSwarmResult(response);
     } catch (err) {
       setError(err.message);

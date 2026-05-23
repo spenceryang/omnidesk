@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import crypto from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -9,6 +10,7 @@ import express from 'express';
 import multer from 'multer';
 import mime from 'mime-types';
 import ffmpegPath from 'ffmpeg-static';
+import { list, put } from '@vercel/blob';
 import {
   GoogleGenAI,
   createPartFromUri,
@@ -20,9 +22,12 @@ const __dirname = path.dirname(__filename);
 const runtimeDir = process.env.VERCEL ? '/tmp/omnidesk' : __dirname;
 const uploadDir = path.join(runtimeDir, 'uploads');
 const generatedDir = path.join(runtimeDir, 'generated');
+const dataDir = path.join(runtimeDir, 'data');
+const localProjectsDir = path.join(dataDir, 'projects');
 
 await fs.mkdir(uploadDir, { recursive: true });
 await fs.mkdir(generatedDir, { recursive: true });
+await fs.mkdir(localProjectsDir, { recursive: true });
 
 const app = express();
 const upload = multer({ dest: uploadDir, limits: { fileSize: 80 * 1024 * 1024 } });
@@ -36,6 +41,7 @@ const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 const videoJobs = new Map();
 const GEMINI_FILE_ACTIVE_TIMEOUT_MS = Number(process.env.GEMINI_FILE_ACTIVE_TIMEOUT_MS || 45_000);
 const GEMINI_FILE_POLL_INTERVAL_MS = Number(process.env.GEMINI_FILE_POLL_INTERVAL_MS || 2_000);
+const usesBlobStorage = Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
 
 const MANAGED_AGENT_ROLES = [
   {
@@ -134,6 +140,180 @@ function extractInteractionText(interaction) {
     }).join('\n');
   }
   return JSON.stringify(interaction.outputs || interaction, null, 2);
+}
+
+function normalizeError(err) {
+  const fallback = {
+    status: err.status || err.statusCode || 500,
+    message: err.message || 'Unexpected server error.',
+    code: err.code || null
+  };
+
+  if (typeof err.message === 'string' && err.message.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(err.message);
+      if (parsed.error) {
+        return {
+          status: parsed.error.code || fallback.status,
+          message: parsed.error.message || fallback.message,
+          code: parsed.error.status || fallback.code
+        };
+      }
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
+}
+
+function publicProject(record) {
+  return {
+    id: record.id,
+    title: record.title,
+    status: record.status,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    brief: record.brief,
+    format: record.targetFormat,
+    durationSeconds: record.durationSeconds,
+    sceneCount: record.sceneCount,
+    models: record.models,
+    plan: record.plan,
+    clips: record.clips || [],
+    finalVideo: record.finalVideo || null,
+    audioPlan: record.audioPlan || null,
+    agentReview: record.agentReview || null,
+    uploadedAssets: record.uploadedAssets || []
+  };
+}
+
+function localProjectPath(projectId) {
+  return path.join(localProjectsDir, `${projectId}.json`);
+}
+
+async function saveProjectRecord(record) {
+  const updatedRecord = {
+    ...record,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (usesBlobStorage) {
+    await put(
+      `omnidesk/projects/${updatedRecord.id}/record.json`,
+      JSON.stringify(updatedRecord, null, 2),
+      {
+        access: 'public',
+        allowOverwrite: true,
+        contentType: 'application/json',
+        cacheControlMaxAge: 60
+      }
+    );
+    return updatedRecord;
+  }
+
+  await fs.writeFile(localProjectPath(updatedRecord.id), JSON.stringify(updatedRecord, null, 2));
+  return updatedRecord;
+}
+
+async function getProjectRecord(projectId) {
+  if (!projectId) return null;
+
+  if (usesBlobStorage) {
+    const listed = await list({ prefix: `omnidesk/projects/${projectId}/record.json`, limit: 1 });
+    const recordBlob = listed.blobs.find((blob) => blob.pathname.endsWith('/record.json'));
+    if (!recordBlob) return null;
+    const response = await fetch(recordBlob.url, { cache: 'no-store' });
+    if (!response.ok) return null;
+    return response.json();
+  }
+
+  try {
+    return JSON.parse(await fs.readFile(localProjectPath(projectId), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function updateProjectRecord(projectId, updater) {
+  const existing = await getProjectRecord(projectId);
+  if (!existing) return null;
+  return saveProjectRecord(updater(existing));
+}
+
+async function listProjectRecords() {
+  if (usesBlobStorage) {
+    const listed = await list({ prefix: 'omnidesk/projects/', limit: 1000 });
+    const recordBlobs = listed.blobs
+      .filter((blob) => blob.pathname.endsWith('/record.json'))
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    const records = await Promise.all(recordBlobs.map(async (blob) => {
+      try {
+        const response = await fetch(blob.url, { cache: 'no-store' });
+        return response.ok ? response.json() : null;
+      } catch {
+        return null;
+      }
+    }));
+    return records.filter(Boolean);
+  }
+
+  const names = await fs.readdir(localProjectsDir).catch(() => []);
+  const records = await Promise.all(names
+    .filter((name) => name.endsWith('.json'))
+    .map(async (name) => {
+      try {
+        return JSON.parse(await fs.readFile(path.join(localProjectsDir, name), 'utf8'));
+      } catch {
+        return null;
+      }
+    }));
+  return records.filter(Boolean).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+async function storeMediaFile({ localPath, pathname, contentType = 'video/mp4' }) {
+  if (!usesBlobStorage) {
+    return {
+      url: `/api/outputs/${path.basename(localPath)}`,
+      storage: 'local'
+    };
+  }
+
+  const blob = await put(pathname, createReadStream(localPath), {
+    access: 'public',
+    allowOverwrite: true,
+    contentType,
+    addRandomSuffix: false,
+    multipart: true,
+    cacheControlMaxAge: 60 * 60 * 24 * 30
+  });
+
+  return {
+    url: blob.url,
+    downloadUrl: blob.downloadUrl,
+    pathname: blob.pathname,
+    storage: 'vercel-blob'
+  };
+}
+
+async function ensureClipLocalFile(clip, index) {
+  const outputUrl = String(clip.outputUrl || '');
+  if (outputUrl.startsWith('/api/outputs/')) {
+    return path.join(generatedDir, path.basename(outputUrl));
+  }
+
+  if (!/^https?:\/\//.test(outputUrl)) {
+    throw new Error(`Clip ${clip.sceneId || index + 1} has no usable output URL.`);
+  }
+
+  const response = await fetch(outputUrl);
+  if (!response.ok) {
+    throw new Error(`Could not download clip ${clip.sceneId || index + 1} for compilation.`);
+  }
+
+  const localPath = path.join(generatedDir, `compile-input-${crypto.randomUUID()}-${index}.mp4`);
+  await fs.writeFile(localPath, Buffer.from(await response.arrayBuffer()));
+  return localPath;
 }
 
 async function runManagedRole({ role, brief, plan }) {
@@ -333,11 +513,24 @@ app.get('/api/health', (_req, res) => {
     videoModel,
     managedAgent,
     managedAgentCount: MANAGED_AGENT_ROLES.length,
-    storage: 'local filesystem',
+    storage: usesBlobStorage ? 'vercel blob' : 'local filesystem',
     note: ai
       ? 'Gemini API key is configured.'
       : 'Set GEMINI_API_KEY in .env to enable live generation.'
   });
+});
+
+app.get('/api/discover', async (_req, res, next) => {
+  try {
+    const records = await listProjectRecords();
+    res.json({
+      ok: true,
+      storage: usesBlobStorage ? 'vercel-blob' : 'local',
+      projects: records.map(publicProject)
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.post('/api/live/plan', upload.array('assets', 8), async (req, res, next) => {
@@ -363,12 +556,42 @@ app.post('/api/live/plan', upload.array('assets', 8), async (req, res, next) => 
     });
 
     const plan = JSON.parse(cleanJson(response.text || '{}'));
+    const projectId = crypto.randomUUID();
+    const record = await saveProjectRecord({
+      id: projectId,
+      status: 'planned',
+      visibility: 'public',
+      title: plan.title || 'Untitled Omnidesk Video',
+      brief: req.body.brief || '',
+      targetFormat: req.body.targetFormat || plan.format || '9:16',
+      durationSeconds: Number(req.body.durationSeconds || plan.durationSeconds || 60),
+      sceneCount: Number(req.body.sceneCount || plan.scenes?.length || 10),
+      createdAt: new Date().toISOString(),
+      models: {
+        planner: plannerModel,
+        video: videoModel,
+        managedAgent
+      },
+      uploadedAssets: uploadedFiles.map((file) => ({
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        geminiFile: file.name,
+        state: file.state
+      })),
+      plan,
+      clips: [],
+      finalVideo: null,
+      audioPlan: null,
+      agentReview: null
+    });
 
     res.json({
       ok: true,
+      projectId,
       model: plannerModel,
       uploadedAssets: uploadedFiles,
-      plan
+      plan,
+      project: publicProject(record)
     });
   } catch (err) {
     next(err);
@@ -379,7 +602,9 @@ app.post('/api/live/videos', async (req, res, next) => {
   try {
     assertConfigured();
     const {
+      projectId,
       sceneId,
+      sceneTitle,
       prompt,
       negativePrompt,
       aspectRatio = '9:16',
@@ -412,7 +637,9 @@ app.post('/api/live/videos', async (req, res, next) => {
     const jobId = crypto.randomUUID();
     videoJobs.set(jobId, {
       id: jobId,
+      projectId,
       sceneId: sceneId || 'scene',
+      sceneTitle,
       operation,
       prompt,
       model: videoModel,
@@ -425,6 +652,7 @@ app.post('/api/live/videos', async (req, res, next) => {
     res.json({
       ok: true,
       jobId,
+      projectId,
       sceneId,
       model: videoModel,
       operationName: operation.name || null,
@@ -480,12 +708,41 @@ app.get('/api/live/videos/:jobId', async (req, res, next) => {
       file: generatedVideo.video,
       downloadPath
     });
+    const stored = await storeMediaFile({
+      localPath: downloadPath,
+      pathname: `omnidesk/projects/${job.projectId || 'unassigned'}/clips/${filename}`,
+      contentType: 'video/mp4'
+    });
 
     job.status = 'completed';
     job.outputPath = downloadPath;
-    job.outputUrl = `/api/outputs/${filename}`;
+    job.outputUrl = stored.url;
+    job.downloadUrl = stored.downloadUrl || stored.url;
+    job.storage = stored.storage;
     job.completedAt = new Date().toISOString();
     videoJobs.set(job.id, job);
+
+    if (job.projectId) {
+      await updateProjectRecord(job.projectId, (record) => {
+        const clips = (record.clips || []).filter((clip) => clip.sceneId !== job.sceneId);
+        clips.push({
+          sceneId: job.sceneId,
+          title: job.sceneTitle || job.sceneId,
+          outputUrl: job.outputUrl,
+          downloadUrl: job.downloadUrl,
+          storage: job.storage,
+          model: job.model,
+          prompt: job.prompt,
+          completedAt: job.completedAt
+        });
+        clips.sort((a, b) => String(a.sceneId).localeCompare(String(b.sceneId)));
+        return {
+          ...record,
+          status: record.finalVideo ? 'completed' : 'clips-generating',
+          clips
+        };
+      });
+    }
 
     res.json({ ok: true, ...job });
   } catch (err) {
@@ -495,7 +752,7 @@ app.get('/api/live/videos/:jobId', async (req, res, next) => {
 
 app.post('/api/live/compile', async (req, res, next) => {
   try {
-    const { clips = [], title = 'omnidesk-final' } = req.body;
+    const { projectId, clips = [], title = 'omnidesk-final' } = req.body;
     if (!Array.isArray(clips) || clips.length === 0) {
       res.status(400).json({ ok: false, error: 'No completed clips were provided.' });
       return;
@@ -506,10 +763,10 @@ app.post('/api/live/compile', async (req, res, next) => {
       return;
     }
 
-    const inputPaths = clips.map((clip) => {
-      const filename = path.basename(String(clip.outputUrl || ''));
-      return path.join(generatedDir, filename);
-    });
+    const inputPaths = [];
+    for (const [index, clip] of clips.entries()) {
+      inputPaths.push(await ensureClipLocalFile(clip, index));
+    }
 
     for (const inputPath of inputPaths) {
       try {
@@ -542,9 +799,30 @@ app.post('/api/live/compile', async (req, res, next) => {
       outputPath
     ]);
 
+    const stored = await storeMediaFile({
+      localPath: outputPath,
+      pathname: `omnidesk/projects/${projectId || 'unassigned'}/final/${outputFilename}`,
+      contentType: 'video/mp4'
+    });
+    const finalVideo = {
+      outputUrl: stored.url,
+      downloadUrl: stored.downloadUrl || stored.url,
+      storage: stored.storage,
+      clipCount: inputPaths.length,
+      completedAt: new Date().toISOString()
+    };
+
+    if (projectId) {
+      await updateProjectRecord(projectId, (record) => ({
+        ...record,
+        status: 'completed',
+        finalVideo
+      }));
+    }
+
     res.json({
       ok: true,
-      outputUrl: `/api/outputs/${outputFilename}`,
+      ...finalVideo,
       clipCount: inputPaths.length
     });
   } catch (err) {
@@ -573,7 +851,7 @@ function runFfmpeg(args) {
 app.post('/api/live/lyria-plan', async (req, res, next) => {
   try {
     assertConfigured();
-    const { brief, plan } = req.body;
+    const { brief, plan, projectId } = req.body;
     const response = await ai.models.generateContent({
       model: plannerModel,
       contents: `Create a rights-safe Lyria RealTime music generation control plan for this music video. Return JSON only.
@@ -592,7 +870,14 @@ JSON shape:
   "rightsSafetyNotes": string[]
 }`
     });
-    res.json({ ok: true, model: plannerModel, plan: JSON.parse(cleanJson(response.text || '{}')) });
+    const audioPlan = JSON.parse(cleanJson(response.text || '{}'));
+    if (projectId) {
+      await updateProjectRecord(projectId, (record) => ({
+        ...record,
+        audioPlan
+      }));
+    }
+    res.json({ ok: true, model: plannerModel, plan: audioPlan });
   } catch (err) {
     next(err);
   }
@@ -601,7 +886,7 @@ JSON shape:
 app.post('/api/live/managed-agent-review', async (req, res, next) => {
   try {
     assertConfigured();
-    const { brief, plan } = req.body;
+    const { brief, plan, projectId } = req.body;
     if (!ai.interactions?.create) {
       res.status(501).json({
         ok: false,
@@ -636,14 +921,21 @@ Plan:
 ${JSON.stringify(plan || {}, null, 2)}`
     }, { timeout: 300_000 });
 
-    res.json({
+    const review = {
       ok: true,
       agent: managedAgent,
       interactionId: interaction.id,
       environmentId: interaction.environment_id,
       outputText: extractInteractionText(interaction),
       steps: interaction.steps || []
-    });
+    };
+    if (projectId) {
+      await updateProjectRecord(projectId, (record) => ({
+        ...record,
+        agentReview: review
+      }));
+    }
+    res.json(review);
   } catch (err) {
     next(err);
   }
@@ -668,7 +960,7 @@ app.post('/api/live/managed-agent-swarm', async (req, res, next) => {
       return;
     }
 
-    const { brief, plan, selectedAgentIds } = req.body;
+    const { brief, plan, selectedAgentIds, projectId } = req.body;
     const selected = Array.isArray(selectedAgentIds) && selectedAgentIds.length
       ? MANAGED_AGENT_ROLES.filter((role) => selectedAgentIds.includes(role.id))
       : MANAGED_AGENT_ROLES;
@@ -685,13 +977,20 @@ app.post('/api/live/managed-agent-swarm', async (req, res, next) => {
       averageScore: Math.round(results.reduce((sum, item) => sum + Number(item.result.score || 0), 0) / Math.max(results.length, 1))
     };
 
-    res.json({
+    const review = {
       ok: true,
       agent: managedAgent,
       count: results.length,
       aggregate,
       results
-    });
+    };
+    if (projectId) {
+      await updateProjectRecord(projectId, (record) => ({
+        ...record,
+        agentReview: review
+      }));
+    }
+    res.json(review);
   } catch (err) {
     next(err);
   }
@@ -699,9 +998,11 @@ app.post('/api/live/managed-agent-swarm', async (req, res, next) => {
 
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(err.status || 500).json({
+  const normalized = normalizeError(err);
+  res.status(normalized.status).json({
     ok: false,
-    error: err.message || 'Unexpected server error.'
+    error: normalized.message,
+    code: normalized.code
   });
 });
 
